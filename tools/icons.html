@@ -2,13 +2,13 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Stella e Bongo icons</title>
+<title>Bella e Bongo icons</title>
 <!--
   Draws the app icon from the game's own art. Open with ?size=512 and save the
   canvas (or screenshot it with headless Chrome, as done for assets/icons/).
   ?size=N   icon size in pixels (default 512)
   ?pad=P    extra margin around the faces, 0..0.4 (default 0, maskable icons use 0.12)
-  ?crop=head  only Stella's head, for the small browser-tab icon
+  ?crop=head  only Bella's head, for the small browser-tab icon
 -->
 <style>
   html, body { margin: 0; background: transparent; }
@@ -52,9 +52,9 @@
     g.drawImage(sc, sx - sc.width / 2, sy - sc.height / 2);
   }
 
-  // Close-up of both faces: crop of the rig around Stella's head and Bongo.
+  // Close-up of both faces: crop of the rig around Bella's head and Bongo.
   var box = head
-    ? { x: 600, y: 200, w: 360, h: 360 }               // Stella's head only (rig units)
+    ? { x: 600, y: 200, w: 360, h: 360 }               // Bella's head only (rig units)
     : { x: 330, y: 130, w: 600, h: 600 };              // both faces (rig units)
   var inner = N * (1 - 2 * pad);
   var k = inner / box.w;

@@ -1,4 +1,4 @@
-/* game.js - gameplay for "Stella e Bongo". Classic script, no modules.
+/* game.js - gameplay for "Bella e Bongo". Classic script, no modules.
  * Uses window.Art (sprites/painting) and window.Sound (audio, never allowed to break the game). */
 (function () {
   'use strict';
@@ -47,9 +47,10 @@
   var i0;
   for (i0 = 0; i0 < 10; i0++) st.slotPop.push(9);
 
-  try { st.best = parseInt(localStorage.getItem('stella.best'), 10) || 0; } catch (e) { st.best = 0; }
+  // 'stella.*' keys are from before the unicorn's name was fixed to Bella: keep reading them.
+  try { st.best = parseInt(localStorage.getItem('bella.best') || localStorage.getItem('stella.best'), 10) || 0; } catch (e) { st.best = 0; }
   function saveBest() {
-    try { localStorage.setItem('stella.best', String(st.best)); } catch (e) { /* ignore */ }
+    try { localStorage.setItem('bella.best', String(st.best)); } catch (e) { /* ignore */ }
   }
 
   // ---------------------------------------------------------------- sprites
@@ -58,10 +59,10 @@
   var HW = CHR.W, HC = CHR.H;                 // rig frame (rig units)
   var dirtyC = document.createElement('canvas'), dirtyG = dirtyC.getContext('2d');
   var SPLOT_DEF = (function () {
-    var A = CHR.anchors, u = 0.075 * 657 * 1.28;   // 0.075 x Stella width in rig units
+    var A = CHR.anchors, u = 0.075 * 657 * 1.28;   // 0.075 x Bella width in rig units
     function d(a, rf) { return { x: a[0], y: a[1], rf: rf }; }
-    return [d(A.stellaHind, 1.0), d(A.stellaBelly, 1.0), d(A.stellaChest, 0.95), d(A.stellaNeck, 0.85),
-      d(A.stellaCheek, 0.8), d(A.stellaLegBack, 0.7), d(A.stellaLegFront, 0.7),
+    return [d(A.bellaHind, 1.0), d(A.bellaBelly, 1.0), d(A.bellaChest, 0.95), d(A.bellaNeck, 0.85),
+      d(A.bellaCheek, 0.8), d(A.bellaLegBack, 0.7), d(A.bellaLegFront, 0.7),
       d(A.bongoCheek, 0.6), d(A.bongoTummy, 0.75), d(A.bongoArm, 0.55)].map(function (o) { o.rf *= 1; o.u = u; return o; });
   })();
   var pose = { t: 0, run: 0, wave: 0, happy: 0, look: 0, glow: 0.5, face: undefined };
@@ -1080,7 +1081,7 @@
   (function () { var t = titleTarget(); st.hero.x = t.x; st.hero.y = t.y; st.hero.h = t.h; })();
   requestAnimationFrame(frame);
 
-  window.__stella = {
+  window.__bella = {
     st: st, pose: pose,
     addPoints: function (n) { addPoints(n); },
     goHome: goHome,

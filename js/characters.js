@@ -1,10 +1,10 @@
-/* characters.js - Stella (pink unicorn toy) and Bongo (teddy in blue crocheted
+/* characters.js - Bella (pink unicorn toy) and Bongo (teddy in blue crocheted
  * overall shorts), drawn from scratch as an animated cut-out puppet rig.
  *
- * Shapes are traced from assets/stella.png and assets/bongo.png. Every part is
+ * Shapes are traced from assets/bella.png and assets/bongo.png. Every part is
  * pre-rendered once into its own sprite (plus a soft white halo sprite for the
  * sticker-like glow). Per frame, draw() places cached sprites with translate /
- * rotate around joints and adds a few small live paths: Stella's four legs
+ * rotate around joints and adds a few small live paths: Bella's four legs
  * (jointed: upper leg, knee / hock, cannon, fetlock; one path each, so the
  * joints never show seams), eyes and smiles.
  * Classic script: window.Characters.
@@ -14,7 +14,7 @@
  *   Characters.draw(g, pose, pxPerUnit) pose = {t, run, wave, happy, look, glow}
  *   Characters.anchors                  named points (rig units, rest pose)
  *
- * Authoring conventions: Stella is authored in "stella.png space" (657x700,
+ * Authoring conventions: Bella is authored in "bella.png space" (657x700,
  * facing right) and mapped into the rig with R(); Bongo in "bongo.png space"
  * (519x700) mapped with B(). Sprite-local coordinates have the joint at (0,0).
  */
@@ -26,7 +26,7 @@
   var PAD = 20;                          // sprite margin for the halo (rig units)
 
   // png-space -> rig mapping
-  var SK = 1.28, SX = 50, SY = 200;      // Stella
+  var SK = 1.28, SX = 50, SY = 200;      // Bella
   var BK = 0.68, BX = 268, BY = 178;     // Bongo
   function R(x, y) { return [x * SK + SX, y * SK + SY]; }
   function B(x, y) { return [x * BK + BX, y * BK + BY]; }
@@ -141,7 +141,7 @@
     g.fillRect(x - r, y - r, r * 2, r * 2);
   }
 
-  // tiny embossed 6-petal "snowflake" flower, the pattern on Stella's coat
+  // tiny embossed 6-petal "snowflake" flower, the pattern on Bella's coat
   function snow(g, x, y, r, a) {
     g.fillStyle = 'rgba(255,255,255,' + a + ')';
     g.beginPath();
@@ -211,7 +211,7 @@
     return h;
   }
 
-  // part authored in stella.png space; pivot in png coords
+  // part authored in bella.png space; pivot in png coords
   function sPart(ppu, pivot, bb, draw, noHalo) {
     var pv = R(pivot[0], pivot[1]), a = R(bb[0], bb[1]), b = R(bb[2], bb[3]);
     var spr = makeSpr(ppu, [a[0] - pv[0], a[1] - pv[1], b[0] - pv[0], b[1] - pv[1]], function (g) {
@@ -228,7 +228,7 @@
     return { s: spr, x: pv[0], y: pv[1] };
   }
 
-  // ============================================================ STELLA ====
+  // ============================================================ BELLA ====
   // Fluffy pink mass made of circles (mane, tail).
   function fluff(g, cs, base, hi, deep, seed, strands) {
     var rnd = mulberry(seed), i;
@@ -292,7 +292,7 @@
       [104, 340, 20], [118, 296, 18]], C.mane, C.maneHi, C.maneDeep, 7, 34);
   }
 
-  // Stella's torso (traced): rounded rump on the left, deep chest on the right
+  // Bella's torso (traced): rounded rump on the left, deep chest on the right
   var BODY = [[190, 251], [158, 258], [135, 281], [123, 320], [127, 365], [148, 394], [200, 404], [270, 403],
     [340, 403], [410, 401], [465, 397], [508, 379], [532, 346], [538, 310], [529, 279], [506, 255],
     [462, 236], [410, 234], [350, 256], [300, 261], [240, 254]];
@@ -573,7 +573,7 @@
     g.restore();
   }
 
-  // Bongo rides in PROFILE (facing right, like Stella). Authored in the same
+  // Bongo rides in PROFILE (facing right, like Bella). Authored in the same
   // 519x700-ish space as the front head, so both head sprites share a scale.
   // capsule-like limb outline from S (root) to H (tip), half-widths w0 -> w1
   function limb(S, H, w0, w1) {
@@ -584,7 +584,7 @@
   }
   var S_SHOULDER = [298, 334], S_HAND = [420, 380];
   var ARM_S = limb(S_SHOULDER, S_HAND, 36, 33);
-  // near leg: hangs down Stella's flank from the cuff of the shorts, big round foot
+  // near leg: hangs down Bella's flank from the cuff of the shorts, big round foot
   var LEG_S = [[262, 492], [346, 490], [360, 540], [384, 584], [398, 626], [372, 662], [300, 664], [262, 634], [254, 566]];
 
   // crochet stitches: staggered rows of little "v" loops with ridges between
@@ -846,7 +846,7 @@
     g.restore();
   }
 
-  // ---- Stella's legs: jointed, built live each frame.
+  // ---- Bella's legs: jointed, built live each frame.
   // Skeleton per leg: hip -> knee (carpus in front, hock behind) -> fetlock ->
   // hoof. Each leg is ONE Path2D made of overlapping same-winding pieces
   // (tapered upper leg, round knee, cannon, round fetlock, short pastern), so
@@ -1092,7 +1092,7 @@
         g.save();
         g.translate(nx, ny); g.rotate(na);
         hornLight(g, P, t, glow);
-        stellaFace(g, t, happy);
+        bellaFace(g, t, happy);
         g.restore();
       }
     }
@@ -1147,9 +1147,9 @@
     g.restore();
   }
 
-  // Stella's gentle eye and her smile (local = neck pivot coords, rig scale)
+  // Bella's gentle eye and her smile (local = neck pivot coords, rig scale)
   var S_EYE = R(564, 122), S_MOUTH = [R(626, 189), R(614, 198), R(602, 189)];
-  function stellaFace(g, t, happy) {
+  function bellaFace(g, t, happy) {
     var x = S_EYE[0] - PN[0], y = S_EYE[1] - PN[1];
     var open = 1 - Math.max(blink(t, 0), happy);
     g.lineCap = 'round'; g.lineJoin = 'round';
@@ -1288,13 +1288,13 @@
   // ------------------------------------------------------------- anchors
   // Rest-pose points in rig units. "follows" notes which part moves them.
   var A = {
-    stellaHind: R(172, 318),        // body (bobs slightly)
-    stellaBelly: R(320, 372),       // body
-    stellaChest: R(512, 352),       // body, just under the butterfly light
-    stellaNeck: R(452, 176),        // neck (swings a little around neck base)
-    stellaCheek: R(556, 166),       // head (follows the neck)
-    stellaLegBack: R(200, 428),     // top of the near hind leg (moves little)
-    stellaLegFront: R(500, 420),    // top of the near front leg (moves little)
+    bellaHind: R(172, 318),        // body (bobs slightly)
+    bellaBelly: R(320, 372),       // body
+    bellaChest: R(512, 352),       // body, just under the butterfly light
+    bellaNeck: R(452, 176),        // neck (swings a little around neck base)
+    bellaCheek: R(556, 166),       // head (follows the neck)
+    bellaLegBack: R(200, 428),     // top of the near hind leg (moves little)
+    bellaLegFront: R(500, 420),    // top of the near front leg (moves little)
     bongoCheek: B(318, 190),        // Bongo head (profile cheek)
     bongoTummy: B(300, 404),        // Bongo torso (side of the overalls)
     bongoArm: B(360, 346),          // Bongo's near arm (reaching to the mane)

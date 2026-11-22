@@ -3,7 +3,7 @@
  * pick up the new version (it applies on the next launch). */
 'use strict';
 
-var VERSION = 'stella-v2';
+var VERSION = 'bella-v3';
 var FILES = [
   './',
   'index.html',

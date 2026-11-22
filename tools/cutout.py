@@ -7,7 +7,7 @@ Setup (once):
     python3 -m venv .venv && .venv/bin/pip install "rembg[cpu]" pillow numpy
 
 Usage:
-    .venv/bin/python tools/cutout.py assets/photos/stella.jpg assets/stella.png --turn transverse
+    .venv/bin/python tools/cutout.py assets/photos/bella.jpg assets/bella.png --turn transverse
     .venv/bin/python tools/cutout.py assets/photos/bongo.jpg  assets/bongo.png
 
 --turn fixes the pose so the character faces right, standing up:

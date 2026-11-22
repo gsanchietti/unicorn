@@ -1,4 +1,4 @@
-/* Stella's sound designer: js/audio.js
+/* Bella's sound designer: js/audio.js
  * ---------------------------------------------------------------------------
  * Everything is synthesized with the Web Audio API (no sound files, no network)
  * except the optional recorded voice cues assets/sounds/<key>.mp3.
@@ -19,7 +19,7 @@
 (function () {
   'use strict';
 
-  var MUTE_KEY = 'stella.muted';
+  var MUTE_KEY = 'bella.muted';
   var LEVELS = { master: 0.85, sfx: 0.8, music: 0.15, duck: 0.35 };
 
   // ------------------------------------------------------------------ helpers
@@ -268,7 +268,11 @@
   var mood = 'day', curMood = 'day', pendingMood = null, songBus = {};
   var lastBubble = 0;
 
-  try { muted = window.localStorage.getItem(MUTE_KEY) === '1'; } catch (e) { muted = false; }
+  try {
+    var saved = window.localStorage.getItem(MUTE_KEY);
+    if (saved === null) saved = window.localStorage.getItem('stella.muted');   // key before the rename
+    muted = saved === '1';
+  } catch (e) { muted = false; }
 
   function ensureCtx() {
     if (ctx) return ctx;

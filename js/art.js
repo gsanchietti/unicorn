@@ -1,4 +1,4 @@
-/* art.js - soft watercolor picture-book art for "Stella e Bongo".
+/* art.js - soft watercolor picture-book art for "Bella e Bongo".
  *
  * Everything expensive (gradients, many passes, blur-like layering) is
  * pre-rendered ONCE into offscreen canvases ("sprites"). The per-frame

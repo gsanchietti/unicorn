@@ -1,7 +1,7 @@
 {
-  "name": "Stella e Bongo",
-  "short_name": "Stella",
-  "description": "Stella the unicorn and Bongo the teddy bear fly and collect stars.",
+  "name": "Bella e Bongo",
+  "short_name": "Bella",
+  "description": "Bella the unicorn and Bongo the teddy bear fly and collect stars.",
   "lang": "it",
   "start_url": "./",
   "scope": "./",

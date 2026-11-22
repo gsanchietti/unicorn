@@ -1,14 +1,14 @@
-# Stella e Bongo
+# Bella e Bongo
 
-A gentle browser game for small children. Stella the unicorn flies with Bongo the teddy bear on her back and collects stars. There is nothing to read, no game over, and points are never taken away.
+A gentle browser game for small children. Bella the unicorn flies with Bongo the teddy bear on her back and collects stars. There is nothing to read, no game over, and points are never taken away.
 
 **Play online:** https://gsanchietti.github.io/unicorn/
 
 ## How to play
 
 - Tap the big **play** button on the start page. The game goes full screen.
-- **Tap or hold** the screen: Stella flies up. **Let go**: she floats down gently.
-- Touch the **stars** to collect them. Clouds are harmless: Stella just bounces off them.
+- **Tap or hold** the screen: Bella flies up. **Let go**: she floats down gently.
+- Touch the **stars** to collect them. Clouds are harmless: Bella just bounces off them.
 - After about 15 stars, a muddy cloud splashes them both. **Rub the screen** to wash off the mud. When they are clean you get 5 bonus stars.
 - At the top, every 10 stars turn into one big star.
 - At 10, 25, 50 stars, and every 50 after that: confetti, a rainbow and "Bravissima!".
@@ -38,17 +38,17 @@ python3 -m http.server 8000
 
 ## The characters
 
-Stella and Bongo are drawn in code in `js/characters.js`, copied from the photos of the real toys in `assets/photos/`. Each character is made of separate parts, so Stella gallops and Bongo turns to the player, waves and smiles. Stella's horn and butterfly slowly change color like toy lights, and flash on every star.
+Bella and Bongo are drawn in code in `js/characters.js`, copied from the photos of the real toys in `assets/photos/`. Each character is made of separate parts, so Bella gallops and Bongo turns to the player, waves and smiles. Bella's horn and butterfly slowly change color like toy lights, and flash on every star.
 
 To change how they look, edit `js/characters.js`. Its header describes the parts and the poses.
 
-`assets/stella.png` and `assets/bongo.png` are cut-outs of the photos, used as references while drawing. To make cut-outs of new photos, use `tools/cutout.py`. It removes the background and adds a soft outline:
+`assets/bella.png` and `assets/bongo.png` are cut-outs of the photos, used as references while drawing. To make cut-outs of new photos, use `tools/cutout.py`. It removes the background and adds a soft outline:
 
 ```sh
 python3 -m venv .venv
 .venv/bin/pip install "rembg[cpu]" pillow numpy        # once; the first run downloads a large model
 
-.venv/bin/python tools/cutout.py assets/photos/stella.jpg assets/stella.png --turn transverse
+.venv/bin/python tools/cutout.py assets/photos/bella.jpg assets/bella.png --turn transverse
 .venv/bin/python tools/cutout.py assets/photos/bongo.jpg  assets/bongo.png
 ```
 
@@ -67,14 +67,14 @@ The voice cues use the browser's Italian voice. To use your own recordings, put 
 
 ## Update the offline copy
 
-Phones keep the game files for offline play (`sw.js`). After changing any file, bump `VERSION` in `sw.js` (for example `stella-v2`), or installed phones keep the old version. They pick up the new one on the next launch after it's online. New files must also be added to `FILES` in `sw.js`.
+Phones keep the game files for offline play (`sw.js`). After changing any file, bump `VERSION` in `sw.js` (for example `bella-v3` → `bella-v4`), or installed phones keep the old version. They pick up the new one on the next launch after it's online. New files must also be added to `FILES` in `sw.js`.
 
 ## Files
 
 - `index.html`, `style.css`: the page, paper texture and mute button
 - `js/art.js`: watercolor drawings (sky, hills, stars, clouds, mud, rainbow, bubbles)
 - `js/audio.js`: sounds and music made in code, plus voice cues
-- `js/characters.js`: Stella and Bongo, drawn and animated
+- `js/characters.js`: Bella and Bongo, drawn and animated
 - `js/game.js`: the game itself
 - `manifest.webmanifest`, `sw.js`: home-screen install and offline play
 - `assets/icons/`: app and tab icons, drawn by `tools/icons.html` from the game art (open it with `?size=512`; `?pad=0.12` for the maskable icon, `?crop=head` for the tab icon)

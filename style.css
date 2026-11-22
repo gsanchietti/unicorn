@@ -31,7 +31,7 @@ html, body {
 }
 
 @font-face {
-  font-family: "Stella Title";
+  font-family: "Bella Title";
   src: url("assets/fonts/title.woff2") format("woff2");
   font-weight: 700;
   font-display: swap;
@@ -46,7 +46,7 @@ html, body {
   margin: 0;
   padding: 0 92px;
   text-align: center;
-  font: 700 min(9vh, 11vw)/1.08 "Stella Title", "Comfortaa", "Arial Rounded MT Bold", "Nunito", sans-serif;
+  font: 700 min(9vh, 11vw)/1.08 "Bella Title", "Comfortaa", "Arial Rounded MT Bold", "Nunito", sans-serif;
   letter-spacing: 0.01em;
   color: #fff;
   text-shadow:
