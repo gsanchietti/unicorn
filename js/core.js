@@ -17,6 +17,8 @@
  *                                     so private mode keeps values for the session
  *   Core.goFullscreen()               call from a tap; leaving full screen goes to 'title'
  *   Core.after(sec, fn)               timer for the current scene, cleared on scene change
+ *   Core.frameMs() -> number          average render cost in ms over the last 120 frames
+ *                                     (also window.__bella.frameMs, for the render test)
  *
  * Scene shape:
  *   { home: 'scene'|null,    // #home is shown when set; a click goes there
@@ -272,6 +274,14 @@
   });
 
   // --------------------------------------------------------------------- loop
+  // Render cost of the last 120 frames, for the render-budget test.
+  var RENDER_N = 120, renderMs = new Float32Array(RENDER_N), renderI = 0, renderCount = 0;
+  function frameMs() {
+    var sum = 0;
+    for (var i = 0; i < renderCount; i++) sum += renderMs[i];
+    return renderCount ? sum / renderCount : 0;
+  }
+
   function frame(ts) {
     requestAnimationFrame(frame);
     if (paused) return;
@@ -283,6 +293,7 @@
       if (window.Backdrop) window.Backdrop.update(dt, !!sc.clock);
       runTimers(dt);
       sc.update(dt);
+      var r0 = performance.now();
       ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
       sc.render(ctx);
       var a = fadeAlpha();
@@ -292,6 +303,9 @@
         ctx.fillRect(0, 0, W, H);
         ctx.globalAlpha = 1;
       }
+      renderMs[renderI] = performance.now() - r0;
+      renderI = (renderI + 1) % RENDER_N;
+      if (renderCount < RENDER_N) renderCount++;
     } catch (err) {
       if (window.console) console.error(err);
     }
@@ -306,6 +320,7 @@
     var hook = window.__bella = window.__bella || {};
     hook.scene = function () { return cur; };
     hook.goHome = pressHome;
+    hook.frameMs = frameMs;
     requestAnimationFrame(frame);
   }
 
@@ -313,7 +328,7 @@
     register: register, go: go, start: start,
     current: function () { return cur; },
     snd: snd, load: load, store: store,
-    goFullscreen: goFullscreen, after: after
+    goFullscreen: goFullscreen, after: after, frameMs: frameMs
   };
   function ro(name, get) { Object.defineProperty(Core, name, { get: get, enumerable: true }); }
   ro('W', function () { return W; });
