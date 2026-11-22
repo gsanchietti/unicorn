@@ -6,6 +6,7 @@ A gentle browser game for small children. Stella the unicorn flies with Bongo th
 
 ## How to play
 
+- Tap the big **play** button on the start page. The game goes full screen.
 - **Tap or hold** the screen: Stella flies up. **Let go**: she floats down gently.
 - Touch the **stars** to collect them. Clouds are harmless: Stella just bounces off them.
 - After about 15 stars, a muddy cloud splashes them both. **Rub the screen** to wash off the mud. When they are clean you get 5 bonus stars.
@@ -13,6 +14,16 @@ A gentle browser game for small children. Stella the unicorn flies with Bongo th
 - At 10, 25, 50 stars, and every 50 after that: confetti, a rainbow and "Bravissima!".
 - After a while the sky turns to sunset and a cozy night with a smiling moon, then back to day. The music changes from a happy tune to a lullaby.
 - The round button at the top right turns the sound on and off. Sound starts after the first tap.
+- The house button next to it goes back to the start page. Leaving full screen does the same.
+
+## Put it on a phone or tablet
+
+Open https://gsanchietti.github.io/unicorn/ once while online, then:
+
+- **Android (Chrome):** menu ⋮ → **Add to Home screen** (or **Install app**).
+- **iPhone / iPad (Safari):** share button → **Add to Home Screen**.
+
+The icon opens the game full screen, and it works offline too: the game files are kept on the device. On iPhone this is also the only way to get full screen, because Safari doesn't allow it for normal pages.
 
 ## Run it
 
@@ -54,6 +65,10 @@ The voice cues use the browser's Italian voice. To use your own recordings, put 
 | `laviamo.mp3` | "Laviamoli!" | the washing starts |
 | `puliti.mp3` | "Che puliti!" | they are clean |
 
+## Update the offline copy
+
+Phones keep the game files for offline play (`sw.js`). After changing any file, bump `VERSION` in `sw.js` (for example `stella-v2`), or installed phones keep the old version. They pick up the new one on the next launch after it's online. New files must also be added to `FILES` in `sw.js`.
+
 ## Files
 
 - `index.html`, `style.css`: the page, paper texture and mute button
@@ -61,6 +76,9 @@ The voice cues use the browser's Italian voice. To use your own recordings, put 
 - `js/audio.js`: sounds and music made in code, plus voice cues
 - `js/characters.js`: Stella and Bongo, drawn and animated
 - `js/game.js`: the game itself
+- `manifest.webmanifest`, `sw.js`: home-screen install and offline play
+- `assets/icons/`: app and tab icons, drawn by `tools/icons.html` from the game art (open it with `?size=512`; `?pad=0.12` for the maskable icon, `?crop=head` for the tab icon)
+- `assets/fonts/title.woff2`: the start page name, a few letters of Comfortaa Bold (SIL Open Font License, see `assets/fonts/OFL.txt`)
 - `assets/photos/`: photos of the real toys; `assets/*.png`: their cut-outs, used as drawing references
 - `tools/cutout.py`: background removal for new photos
 
