@@ -178,7 +178,7 @@
   var LADDER_SEMI = function (i) { return PENT[((i % 5) + 5) % 5] + 12 * Math.floor(i / 5); };
 
   /** Schedule one eighth-note slot (0..63) of the loop; pass is the loop count. */
-  Synth.musicSlot = function (ctx, dest, t, slot, pass) {
+  Synth.nightSlot = function (ctx, dest, t, slot, pass) {
     var bar = Math.floor(slot / 8), step = slot % 8, alt = (pass % 2) === 1;
     var row = (alt && bar === 3) ? MELODY_ALT_BAR3 : MELODY[bar];
     var m = row[step];
@@ -202,10 +202,70 @@
     }
   };
 
+
+  // ---- DAY song: 16-bar bouncy loop, 124 bpm, C major (pentatonic lead, C-F-G bass).
+  // Marimba lead, bass on beats 1 and 3, soft kick, tiny noise-tick hats.
+  var DAY_BPM = 124, DEIGHTH = 60 / DAY_BPM / 2;
+  var D_P1 = [5, _, 7, 5, 8, _, 7, _], D_P2 = [6, _, 8, 6, 9, _, 8, _],
+      D_P3 = [8, 7, 5, _, 7, 5, 4, _], D_P4 = [5, _, 6, 7, 8, _, _, _], D_P4b = [5, _, 7, _, 5, _, _, _],
+      D_B1 = [9, _, 8, 9, 10, _, 9, 8], D_B2 = [8, _, 7, 8, 9, _, 8, 7],
+      D_B3 = [7, _, 5, 7, 8, _, 7, 5], D_B4 = [6, 7, 8, _, 5, _, _, _];
+  var DAY_MELODY = [D_P1, D_P2, D_P3, D_P4,  D_P1, D_P2, D_P3, D_P4b,
+                    D_B1, D_B2, D_B3, D_B4,  D_P1, D_P2, D_P3, D_P4];
+  // bass root per bar, semitones relative to C4 (C3, F2, G2, A2)
+  var DAY_ROOT = [-12, -19, -17, -12,  -12, -19, -17, -12,  -15, -19, -17, -12,  -12, -19, -17, -12];
+
+  function marimba(ctx, dest, t, f, peak) {
+    tone(ctx, dest, t, { f: f, peak: peak, attack: 0.004, dur: 0.30 });
+    tone(ctx, dest, t, { f: f * 4, peak: peak * 0.22, attack: 0.003, dur: 0.07 });
+    tone(ctx, dest, t, { type: 'triangle', f: f * 2, peak: peak * 0.15, attack: 0.004, dur: 0.12 });
+  }
+  function tick(ctx, dest, t, peak) {                 // soft filtered-noise hat
+    var src = ctx.createBufferSource(), hp = ctx.createBiquadFilter(), g = ctx.createGain();
+    src.buffer = noiseBuffer(ctx);
+    hp.type = 'bandpass'; hp.frequency.value = 6500; hp.Q.value = 0.8;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(peak, t + 0.004);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.045);
+    src.connect(hp); hp.connect(g); g.connect(dest);
+    src.start(t, Math.random() * 0.5); src.stop(t + 0.06);
+  }
+  function kick(ctx, dest, t, peak) {                 // soft round kick
+    tone(ctx, dest, t, { f: 130, f2: 50, glide: 0.1, peak: peak, attack: 0.006, dur: 0.16 });
+  }
+
+  /** One eighth-note slot (0..127) of the 16-bar day loop. */
+  Synth.daySlot = function (ctx, dest, t, slot, pass) {
+    var bar = Math.floor(slot / 8), step = slot % 8, alt = (pass % 2) === 1;
+    var m = DAY_MELODY[bar][step];
+    if (m >= 0) {
+      var pk = (step % 4 === 0) ? 0.5 : 0.4;
+      marimba(ctx, dest, t, semis(LADDER_SEMI(m)), pk);
+      if (alt && bar < 8) marimba(ctx, dest, t, semis(LADDER_SEMI(m + 2)), 0.16);   // harmony on odd passes
+    }
+    if (alt && bar === 15 && step >= 4 && step % 2 === 0)                             // little rising fill
+      marimba(ctx, dest, t, semis(LADDER_SEMI(5 + ((step - 4) * 1.25 | 0))), 0.3);
+    if (step === 0 || step === 4) {
+      var root = DAY_ROOT[bar] + (step === 4 ? 7 : 0);
+      tone(ctx, dest, t, { f: semis(root), peak: 0.5, attack: 0.008, dur: DEIGHTH * 3.2 });
+      tone(ctx, dest, t, { type: 'triangle', f: semis(root + 12), peak: 0.1, attack: 0.008, dur: DEIGHTH * 1.5, lp: 900 });
+      if (!(alt && bar >= 8 && bar < 12)) kick(ctx, dest, t, 0.32);
+    }
+    tick(ctx, dest, t, step % 2 === 1 ? 0.07 : 0.035);
+  };
+
+  Synth.musicSlot = Synth.nightSlot;   // backwards-compatible name
+  var SONGS = {
+    night: { slots: 64, step: EIGHTH, fn: Synth.nightSlot, gain: 1 },
+    day:   { slots: 128, step: DEIGHTH, fn: Synth.daySlot, gain: 0.7 }
+  };
+  var XFADE = 3;   // seconds, mood crossfade
+
   // ---------------------------------------------------------------- runtime
   var ctx = null, master = null, sfxBus = null, musicBus = null, comp = null;
   var muted = false, suspended = false, musicStarted = false, unlockedSpeech = false;
   var musicTimer = null, nextSlotTime = 0, slotCounter = 0;
+  var mood = 'day', curMood = 'day', pendingMood = null, songBus = {};
   var lastBubble = 0;
 
   try { muted = window.localStorage.getItem(MUTE_KEY) === '1'; } catch (e) { muted = false; }
@@ -224,6 +284,13 @@
       sfxBus = ctx.createGain(); sfxBus.gain.value = LEVELS.sfx;
       musicBus = ctx.createGain(); musicBus.gain.value = LEVELS.music;
       sfxBus.connect(master); musicBus.connect(master);
+      // one sub-bus per song, so moods can be crossfaded under the shared (ducked) musicBus
+      curMood = mood; pendingMood = null;
+      ['day', 'night'].forEach(function (k) {
+        songBus[k] = ctx.createGain();
+        songBus[k].gain.value = (k === curMood) ? SONGS[k].gain : 0;
+        songBus[k].connect(musicBus);
+      });
       master.connect(comp); comp.connect(ctx.destination);
     } catch (e) { ctx = null; }
     return ctx;
@@ -239,14 +306,22 @@
   }
 
   // ---- music scheduler (lookahead): setInterval + AudioContext time
+  /** Crossfade to another song starting at audio time T. */
+  function switchSong(next, T) {
+    var out = songBus[curMood].gain, inn = songBus[next].gain;
+    out.cancelScheduledValues(T); out.setValueAtTime(out.value, T); out.linearRampToValueAtTime(0, T + XFADE);
+    inn.cancelScheduledValues(T); inn.setValueAtTime(inn.value, T); inn.linearRampToValueAtTime(SONGS[next].gain, T + XFADE);
+    curMood = next; pendingMood = null; slotCounter = 0;
+  }
   function musicTick() {
     if (!ctx || suspended || ctx.state !== 'running') return;
     var horizon = ctx.currentTime + 0.35;
     if (nextSlotTime < ctx.currentTime - 0.1) nextSlotTime = ctx.currentTime + 0.05; // fell behind
     while (nextSlotTime < horizon) {
-      var slot = slotCounter % 64, pass = Math.floor(slotCounter / 64);
-      try { Synth.musicSlot(ctx, musicBus, nextSlotTime, slot, pass); } catch (e) { /* keep going */ }
-      nextSlotTime += EIGHTH;
+      if (pendingMood && slotCounter % 8 === 0) switchSong(pendingMood, nextSlotTime);  // bar boundary
+      var song = SONGS[curMood], slot = slotCounter % song.slots, pass = Math.floor(slotCounter / song.slots);
+      try { song.fn(ctx, songBus[curMood], nextSlotTime, slot, pass); } catch (e) { /* keep going */ }
+      nextSlotTime += song.step;
       slotCounter++;
     }
   }
@@ -358,6 +433,21 @@
     },
     toggleMute: function () { Sound.setMuted(!muted); return muted; },
 
+    /** 'day' (bouncy, default) or 'night' (lullaby). Crossfades over ~3 s at a bar boundary. */
+    setMood: function (m) {
+      try {
+        if (m !== 'day' && m !== 'night') return;
+        if (m === mood) return;
+        mood = m;
+        if (!ctx) return;                               // before init(): remembered, used at start
+        if (musicTimer) { pendingMood = (m !== curMood) ? m : null; return; }
+        // music not running (not started / suspended): switch instantly
+        songBus[curMood].gain.value = 0; songBus[m].gain.value = SONGS[m].gain;
+        curMood = m; pendingMood = null; slotCounter = 0;
+      } catch (e) { /* ignore */ }
+    },
+    getMood: function () { return mood; },
+
     star: function (n) { playSfx(Synth.star, n || 0); },
     bubble: function () {
       var now = (window.performance && performance.now) ? performance.now() : Date.now();
@@ -412,7 +502,7 @@
     },
 
     // test hooks (offline rendering / auditioning); not part of the game contract
-    _synth: Synth, _levels: LEVELS, _eighth: EIGHTH
+    _synth: Synth, _levels: LEVELS, _eighth: EIGHTH, _dayEighth: DEIGHTH, _songs: SONGS
   };
 
   window.Sound = Sound;
