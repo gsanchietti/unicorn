@@ -261,8 +261,12 @@
 
   // ---- speech / recorded voice
   var VOICE_TEXT = { via: 'Si vola!', bravissima: 'Bravissima!', laviamo: 'Laviamoli!', puliti: 'Che puliti!' };
+  // Recorded voice files. Add a key here after dropping assets/sounds/<key>.mp3,
+  // e.g. ['bravissima', 'via']. Keys not listed use the browser's Italian voice,
+  // so nothing is requested for missing files.
+  var RECORDED = [];
   var files = {};   // key -> { el, ok }
-  Object.keys(VOICE_TEXT).forEach(function (key) {
+  RECORDED.forEach(function (key) {
     try {
       var el = new Audio();
       var rec = { el: el, ok: false };
