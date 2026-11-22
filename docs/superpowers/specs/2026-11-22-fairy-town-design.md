@@ -1,6 +1,6 @@
 # Fairy town: a small world with several games
 
-Status: draft for approval, 2026-11-22. Updated with the owner's answers to the review questions.
+Status: approved by the owner, 2026-11-22.
 
 ## Intent
 
@@ -181,7 +181,7 @@ The finished cakes appear small in the bakery window, the last 6. It's optional,
 ### The bubble pond
 
 - **Shooting:** Bella flies over the pond, as in the star game: hold to rise, release to float down. Bubbles leave her horn by themselves, about one every 0.8 s, so the child only steers. This was chosen so a 5-year-old can't fail at "aiming plus flying". A tap can also shoot an extra bubble.
-- **Octopuses:** blue-side-up, they bob in the water and pop up in gentle arcs. The blue side is drawn **like the toy's blue side** (owner's decision), so it may be grumpy. When a bubble touches one, it flips to the red smiling side inside the bubble with a big happy "pop" of color, giggles and floats up to a cloud "nursery" at the top. Each one gives 1 star.
+- **Octopuses:** blue-side-up, they bob in the water and pop up in gentle arcs. The blue side is **grumpy**, like the toy's (owner's decision). No photo of it exists, so the designer draws it: the usual reversible-octopus pout, with a small frown and droopy, half-closed eyes. When a bubble touches one, it flips to the red smiling side inside the bubble with a big happy "pop" of color, giggles and floats up to a cloud "nursery" at the top. Each one gives 1 star.
   - The grumpiness is gentle and funny, never scary: soft pouty mouth, no teeth, no angry movement. It never chases or bumps Bella.
   - The flip to happy is the payoff, so it must be big and joyful.
 - **Bubbles:** they bump each other and wobble (Matter.js). They pop softly after a few seconds or at the top.
@@ -223,5 +223,4 @@ Each step is playable, and **published to the live game when it's done** (owner'
   - Default: all four (husky, Pagi, mouse, lizard) take turns as friends. The mouse also floats over the street in its balloon, and the lizard also sits by the pond.
 - **The girl with balloons.**
   - Default: she stays out of the game.
-- **Octopus blue side.** There's no photo of it yet.
-  - Default: the usual reversible-octopus pout (small frown, droopy eyes), unless the owner sends a photo before step 4.
+
