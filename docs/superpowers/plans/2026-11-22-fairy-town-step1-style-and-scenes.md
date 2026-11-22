@@ -19,7 +19,10 @@
 
 - No build step. Classic scripts only (no `import`/`export`). The game must still run when `index.html` is opened from disk.
 - Touch-first pointer events, 60 fps on mid-range phones, DPR capped at 2, `prefers-reduced-motion` respected, the mute button kept.
-- Every new or renamed game file is added to `FILES` in `sw.js`, and `VERSION` is bumped to `bella-v4` at release.
+- **The live game stays unchanged.** All work happens on branch `town`. `main` gets only two changes:
+  - the `next/` preview folder (Task 5),
+  - a one-line guard in the live `sw.js` so it ignores `next/` (Task 5).
+- Every new or renamed game file is added to `FILES` in `sw.js` (on `town`).
 - Audio never breaks the game: every Sound call goes through a try/catch wrapper.
 - localStorage access is always inside try/catch. Keys: `bella.best` and `bella.muted`. The old `stella.best` and `stella.muted` are still read as a fallback.
 - No text for the child to read. Nothing frightening. Points are never taken away.
@@ -40,11 +43,13 @@
 2. **Two fingers at once (both hands), then lifting them in either order:** no stuck "held" state, and Bella floats down. Test: task 2, `two pointers released in any order clear hold`.
 3. **Double-tapping home or play during a scene fade:** it ends on exactly one scene, entered once. Test: task 2, `double tap during fade enters scene once`.
 4. **App sent to the background during a fade, then back:** the fade finishes and audio resumes. Test: task 2, `hidden during fade resumes cleanly`.
-5. **A phone with the old offline copy (`bella-v3`) and old `stella.*` saves:** the new files load and the score is kept. Test: task 5, `upgrade from v3 cache keeps best score`.
+5. **A phone that has both the live game and the preview installed:** each keeps its own offline copy and saves, and neither serves the other's files. Test: task 5, `live game and preview stay separate`.
 
 ---
 
 ### Task 1: Test harness pinned to today's behavior
+
+First create the work branch: `git switch -c town`. Tasks 1–4 and the `town` parts of Task 5 are committed there.
 
 **Files:**
 - Create: `tests/package.json`, `tests/helpers.js`, `tests/game.test.js`
@@ -195,22 +200,37 @@
 - [ ] **Step 4: Run** `cd tests && npm test`. Expected: all pass.
 - [ ] **Step 5: Commit.** Message `feat: redraw Bella and Bongo in the wall style`.
 
-### Task 5: Release step 1
+### Task 5: Publish step 1 as a preview (the live game stays as it is)
 
 **Files:**
-- Modify: `sw.js` (`VERSION = 'bella-v4'`, `FILES` complete), `assets/icons/*` (re-rendered from `tools/icons.html` in the new style), `README.md`, `AGENTS.md` (architecture, scenes, new style, how to test)
+- On `town`:
+  - `sw.js`: `VERSION = 'bella-next-1'`, `FILES` complete.
+  - `assets/icons/*`: re-rendered from `tools/icons.html` in the new style.
+  - `README.md` and `AGENTS.md`: architecture, scenes, the new style, how to test, and the preview flow.
+  - `tools/publish-preview.sh`: copies the game files from a `town` worktree into `next/` on `main`.
+- On `main`:
+  - `next/`: the generated copy.
+  - `sw.js`: one guard at the top of the `fetch` handler, so the live game ignores the preview: `if (new URL(e.request.url).pathname.indexOf('/next/') !== -1) return;`. Live `VERSION` → `bella-v4`, so phones pick up the guard.
 - Test: `tests/game.test.js`
 
 **Interfaces:**
 - Consumes: everything above.
+- Produces: `tools/publish-preview.sh <town-worktree> <main-worktree>`:
+  - It replaces `next/` with the game files only: `index.html`, `style.css`, `manifest.webmanifest`, `sw.js`, `js/`, `assets/icons/`, `assets/fonts/`. Not the photos or the tools.
+  - In the copied `manifest.webmanifest`, it sets `"name": "Bella e Bongo (prova)"`, so both icons can sit on a phone without confusion.
 
-- [ ] **Step 1: Add the failing test** `upgrade from v3 cache keeps best score`.
-  - Serve the commit before Task 2 (`git worktree add` of `ae4bb88` into a temp folder) and load it, so the `bella-v3` service worker installs.
-  - Set `stella.best = '17'`.
-  - Switch the server root to the working tree and reload twice.
-  - Expect `window.Core` to be defined, the best score to be 17, and `caches.keys()` to equal `['bella-v4']`.
-- [ ] **Step 2: Run it.** Expected: it fails while `VERSION` is still `bella-v3`.
-- [ ] **Step 3: Bump `VERSION`, complete `FILES`, re-render the icons and update the docs.**
-- [ ] **Step 4: Run** `cd tests && npm test`. Expected: all pass. Then check by eye the screenshots in `tests/out/`.
-- [ ] **Step 5: Commit and publish.** Commit with message `feat: release the wall style and scenes`, then `git push origin main`. Wait until `gh api repos/gsanchietti/unicorn/pages/builds/latest` reports `built` for the pushed commit.
-- [ ] **Step 6: Stop for the owner's review.** Per the spec, step 2 starts only after the owner approves the new look of Bella and Bongo.
+- [ ] **Step 1: Add the failing test** `live game and preview stay separate`. Serve a folder made of the `main` worktree with the published `next/` inside.
+  - Load `/` and then `/next/`.
+  - Each page's `navigator.serviceWorker.controller.scriptURL` ends with its own `sw.js`.
+  - `caches.keys()` contains both `bella-v4` and `bella-next-1`.
+  - With the network off, reloading each still works.
+  - `/` still shows the old game: `window.Core` is undefined and `window.__bella.st` exists.
+  - The `bella.best` value saved on `/` is still there after playing on `/next/`. The pages share localStorage, so the preview must not reset it.
+- [ ] **Step 2: Run it.** Expected: it fails (no `next/`, no guard).
+- [ ] **Step 3:** Write `tools/publish-preview.sh`. Add the guard and the `VERSION` bump on `main`. Run the script. Re-render the icons and update the docs on `town`.
+- [ ] **Step 4: Run** `cd tests && npm test`. Expected: all pass. Check by eye the screenshots in `tests/out/`.
+- [ ] **Step 5: Commit and publish.**
+  - On `town`: commit with message `feat: wall style and scenes (step 1)` and push the branch.
+  - On `main`: commit with message `chore: publish fairy town preview at /next/` and push.
+  - Wait until `gh api repos/gsanchietti/unicorn/pages/builds/latest` reports `built`. Then check that https://gsanchietti.github.io/unicorn/ is unchanged and that `/next/` shows the new style.
+- [ ] **Step 6: Stop for the owner's review** of the preview. Step 2 starts only after they approve the new look of Bella and Bongo.

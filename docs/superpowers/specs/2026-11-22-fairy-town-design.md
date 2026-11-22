@@ -197,9 +197,16 @@ The finished cakes appear small in the bakery window, the last 6. It's optional,
 
 ## Delivery order
 
-Each step is playable, and **published to the live game when it's done** (owner's decision): committed and pushed to `main`, with the `sw.js` `VERSION` bumped. Then work moves to the next step.
+**The current game stays live and unchanged until the new world is ready** (owner's decision). The work happens on a `town` branch, and `main` (the live game at https://gsanchietti.github.io/unicorn/) isn't touched.
 
-**Exception:** after step 1, work stops until the owner has tried it and approved the new look of Bella and Bongo. It's the riskiest step, and everything after it is drawn in that style.
+Each step is playable and, when done, published as a **preview** at https://gsanchietti.github.io/unicorn/next/, so it can be tried on a phone:
+- The preview is a copy of the `town` branch's game files in a `next/` folder on `main`. Only that folder changes.
+- It has its own service worker, with its own cache name (`bella-next-…`) and scope (`next/`), so it never touches the live game's offline copy.
+- The live game's `sw.js` must not serve or cache anything under `next/`.
+
+When the whole new world is ready and the owner says so, `town` replaces the live game, and `next/` is removed.
+
+After step 1, work stops until the owner has tried the preview and approved the new look of Bella and Bongo. It's the riskiest step, and everything after it is drawn in that style.
 
 1. **Style switch and scenes.** Split into core and scenes, the star game moved over unchanged. Bella, Bongo, the sky, clouds and stars redrawn in the wall style (Fable). The street doesn't exist yet: play goes straight to the star game.
 2. **The street,** with the sky gate into the star game, and the town square with a static jar.
