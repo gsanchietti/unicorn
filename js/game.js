@@ -8,6 +8,7 @@
   var cv = document.getElementById('game');
   var ctx = cv.getContext('2d');
   var muteBtn = document.getElementById('mute');
+  var homeBtn = document.getElementById('home');
 
   // ------------------------------------------------------------ small utils
   function snd(name) {
@@ -78,7 +79,7 @@
     S.bigR = clamp(m * 0.05, 16, 28);
     S.pad = clamp(m * 0.022, 8, 13);
     S.availL = 12;
-    S.availR = W - 12 - 68 - 12;
+    S.availR = W - 12 - 68 - 10 - 56 - 12;    // leave room for the mute and home buttons
     S.availW = Math.max(120, S.availR - S.availL);
     var sr = clamp(m * 0.03, 10, 17);
     var step = Math.min(sr * 2.6, (S.availW - 2 * S.pad) / 10);
@@ -140,8 +141,12 @@
     var h = Math.min(0.78 * space, 0.86 * W / heroAspect());
     return { x: W / 2, y: bb + space / 2, h: h };
   }
+  // Start page: the name is HTML (#title) at the top, then the hero, the play button, the best score.
   function titleTarget() {
-    return { x: W / 2, y: H * 0.3, h: Math.min(H * 0.3, W * 0.55) };
+    return { x: W / 2, y: H * 0.35, h: Math.min(H * 0.28, W * 0.55) };
+  }
+  function playButton() {
+    return { x: W / 2, y: H * 0.65, r: M * 0.14 };
   }
 
   // ------------------------------------------------------------- resize/build
@@ -426,7 +431,44 @@
   }
 
   // -------------------------------------------------------------- mode changes
-  function setMode(m) { st.mode = m; st.mt = 0; }
+  function setMode(m) {
+    st.mode = m; st.mt = 0;
+    document.body.classList.toggle('playing', m !== 'title');
+  }
+
+  // Back to the start page. The best score is already saved on every point.
+  function goHome() {
+    if (st.mode === 'title') return;
+    st.timers.length = 0;
+    st.stars.length = 0; st.clouds.length = 0; st.bonus.length = 0; st.bubbles.length = 0;
+    st.mud = null; st.splotches = null; st.dirtyNeed = false; st.rainbow = null;
+    st.held = false; st.fade = 1; st.popT = 0;
+    st.hero.vy = 0; st.hero.rot = 0;
+    pointers.clear();
+    setMode('title');
+    refit();
+  }
+
+  // Full screen starts with the play tap (browsers allow it only after a tap).
+  // iPhone Safari has no full screen for pages: there, "Add to Home Screen" gives it.
+  var fsUsed = false;
+  function fsElement() { return document.fullscreenElement || document.webkitFullscreenElement || null; }
+  function goFullscreen() {
+    var el = document.documentElement;
+    var req = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (!req || fsElement()) return;
+    try {
+      var r = req.call(el, { navigationUI: 'hide' });
+      fsUsed = true;
+      if (r && r.catch) r.catch(function () { fsUsed = false; });
+    } catch (e) { fsUsed = false; }
+  }
+  function onFsChange() {
+    // Leaving full screen (back button, Esc) goes back to the start page.
+    if (!fsElement() && fsUsed) { fsUsed = false; goHome(); }
+  }
+  document.addEventListener('fullscreenchange', onFsChange);
+  document.addEventListener('webkitfullscreenchange', onFsChange);
 
   function startGame() {
     st.score = 0; st.sinceWash = 0; st.held = false;
@@ -856,7 +898,7 @@
   }
 
   function drawTitleUI(g) {
-    var r = M * 0.14, cx = W / 2, cy = H * 0.6;
+    var pb = playButton(), r = pb.r, cx = pb.x, cy = pb.y;
     Art.drawPlayButton(g, cx, cy, r, st.t);
     if (st.best > 0) {
       var big = Math.floor(st.best / 10), small = st.best % 10;
@@ -949,7 +991,14 @@
     snd('init');
     try { cv.setPointerCapture(e.pointerId); } catch (er) { /* ignore */ }
     var p = { x: e.clientX, y: e.clientY, acc: 0, sup: false };
-    if (st.mode === 'title') { p.sup = true; startGame(); }
+    if (st.mode === 'title') {
+      // Only the play button starts the game; generous target for small fingers.
+      var pb = playButton();
+      if (Math.hypot(p.x - pb.x, p.y - pb.y) > pb.r * 1.35) return;
+      p.sup = true;
+      goFullscreen();
+      startGame();
+    }
     pointers.set(e.pointerId, p);
     if (st.mode === 'wash') {
       rubAt(p.x, p.y, 0.6 * 0.075 * M);
@@ -989,6 +1038,21 @@
     muteBtn.setAttribute('aria-pressed', String(m === undefined ? safeMuted() : !!m));
   });
 
+  homeBtn.addEventListener('click', function () {
+    if (fsElement()) {
+      fsUsed = true;   // onFsChange goes home once full screen has closed
+      var ex = document.exitFullscreen || document.webkitExitFullscreen;
+      try { var r = ex.call(document); if (r && r.catch) r.catch(goHome); } catch (e) { goHome(); }
+    } else goHome();
+  });
+
+  // Offline play and "Add to Home Screen": cache the game files (only over http/https).
+  if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('sw.js').catch(function () { /* online play still works */ });
+    });
+  }
+
   var paused = false, last = 0;
   document.addEventListener('visibilitychange', function () {
     if (document.hidden) { snd('suspend'); paused = true; pointers.clear(); }
@@ -1019,6 +1083,7 @@
   window.__stella = {
     st: st, pose: pose,
     addPoints: function (n) { addPoints(n); },
+    goHome: goHome,
     getDirty: function () { return st.splotches ? st.splotches.map(function (s) { return s.amount; }) : []; },
     setTime: function (ph) {
       var o = { day: 10, sunset: CYC.day + CYC.sun / 2, night: CYC.day + CYC.sun + CYC.night / 2, sunrise: CYC.day + CYC.sun + CYC.night + CYC.rise / 2 };

@@ -5,13 +5,28 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#d9c4f0">
   <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Stella e Bongo">
   <title>Stella e Bongo</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Ctext y=%27.9em%27 font-size=%2790%27%3E%E2%AD%90%3C/text%3E%3C/svg%3E">
+  <link rel="icon" href="assets/icons/favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="icon" href="assets/icons/favicon-16.png" sizes="16x16" type="image/png">
+  <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="preload" href="assets/fonts/title.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <canvas id="game" aria-label="Stella e Bongo"></canvas>
   <div class="paper" aria-hidden="true"></div>
+  <h1 id="title">Stella e Bongo</h1>
+
+  <button id="home" type="button" aria-label="Home">
+    <svg viewBox="0 0 48 48" aria-hidden="true">
+      <path d="M9 23L24 10l15 13" />
+      <path class="fill" d="M14 21v15a3 3 0 0 0 3 3h5v-9h4v9h5a3 3 0 0 0 3-3V21L24 12z" />
+    </svg>
+  </button>
 
   <button id="mute" type="button" aria-label="Audio" aria-pressed="false">
     <svg class="on" viewBox="0 0 48 48" aria-hidden="true">
