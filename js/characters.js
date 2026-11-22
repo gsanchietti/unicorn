@@ -26,7 +26,7 @@
 
   // png-space -> rig mapping
   var SK = 1.28, SX = 50, SY = 200;      // Stella
-  var BK = 0.68, BX = 222, BY = 192;     // Bongo
+  var BK = 0.68, BX = 268, BY = 178;     // Bongo
   function R(x, y) { return [x * SK + SX, y * SK + SY]; }
   function B(x, y) { return [x * BK + BX, y * BK + BY]; }
 
@@ -34,7 +34,7 @@
   var C = {
     line: 'rgba(120,84,150,0.66)',        // soft dark-lilac outline
     lineRGB: '120,84,150',
-    pBase: '#ebb9d2', pHi: '#fce5ef', pShade: '#c99abc',
+    pBase: '#e7b8cf', pHi: '#fae6ef', pShade: '#c397b7',
     hoof: '#dc86b2', hoofDeep: '#b9659b',
     mane: '#f784b8', maneHi: '#ffbcd9', maneDeep: '#e560a0',
     fur: '#f6ecd6', furHi: '#fffbf1', furShade: '#e0cfab',
@@ -298,7 +298,7 @@
 
   function drawBody(g) {
     smooth(g, BODY, 0.16);
-    g.fillStyle = lin(g, 0, 240, 0, 405, [[0, C.pHi], [0.28, C.pBase], [0.72, '#dda6c6'], [1, C.pShade]]);
+    g.fillStyle = lin(g, 0, 240, 0, 405, [[0, C.pHi], [0.28, C.pBase], [0.72, '#d8a5c3'], [1, C.pShade]]);
     g.fill();
     g.save();
     g.clip();
@@ -388,10 +388,10 @@
   // Neck + head (one piece, traced). Pivot at the middle of the collar line.
   // The neck rises almost straight up with a gentle arch; the head hangs
   // forward and down, with a rounded, slightly darker muzzle.
-  var NECK = [[401, 236], [402, 205], [409, 172], [423, 138], [444, 106], [472, 80], [504, 62], [532, 56],
-    [556, 62], [574, 78], [588, 102], [600, 130], [614, 154], [621, 172], [618, 189], [606, 200],
-    [587, 202], [567, 194], [548, 183], [531, 178], [517, 187], [509, 206], [510, 234], [519, 258],
-    [527, 280], [508, 262], [462, 248]];
+  var NECK = [[401, 236], [402, 205], [409, 172], [423, 138], [444, 106], [472, 80], [502, 63], [530, 57],
+    [553, 63], [570, 77], [581, 97], [590, 118], [600, 138], [613, 151], [627, 160], [633, 173],
+    [630, 187], [621, 198], [605, 204], [589, 201], [577, 193], [562, 192], [546, 189], [531, 181],
+    [518, 187], [509, 206], [510, 234], [519, 258], [527, 280], [508, 262], [462, 248]];
 
   function collarAt(t, up) {              // point on the collar curve, shifted "up" along the neck
     var a = [401, 236], b = [468, 244], c = [527, 281];
@@ -402,36 +402,40 @@
 
   function drawNeckHead(g) {
     var i;
-    // ear (behind the poll)
-    var ear = [[534, 66], [541, 46], [556, 36], [562, 50], [563, 70], [548, 76]];
+    // ear: pointed but rounded, standing up behind the horn base
+    var ear = [[516, 68], [520, 46], [533, 27], [544, 38], [551, 60], [538, 74]];
     smooth(g, ear, 0.2);
-    g.fillStyle = lin(g, 534, 40, 564, 74, [[0, '#f6c8df'], [1, '#dba3c8']]); g.fill();
+    g.fillStyle = lin(g, 516, 30, 552, 72, [[0, '#f8d2e3'], [1, '#dba6c6']]); g.fill();
     outline(g, 3);
-    ellipsePath(g, 552, 54, 4.2, 11, 0.32);
-    g.fillStyle = 'rgba(226,128,172,0.6)'; g.fill();
+    var earIn = [[524, 62], [527, 47], [534, 37], [540, 46], [543, 60], [534, 66]];
+    smooth(g, earIn, 0.2);
+    g.fillStyle = 'rgba(224,128,170,0.55)'; g.fill();
 
     smooth(g, NECK, 0.15);
-    g.fillStyle = lin(g, 400, 60, 600, 230, [[0, '#f9d3e6'], [0.5, C.pBase], [1, '#dba6c8']]);
+    g.fillStyle = lin(g, 400, 60, 600, 230, [[0, '#f7d6e5'], [0.5, C.pBase], [1, '#d6a5c4']]);
     g.fill();
     g.save();
     g.clip();
     softSpot(g, 520, 215, 62, '150,104,170', 0.36);         // throat shadow
-    softSpot(g, 545, 196, 40, '150,104,170', 0.26);         // under the jaw
+    softSpot(g, 548, 198, 36, '150,104,170', 0.3);          // under the jaw
     softSpot(g, 408, 180, 46, '150,104,170', 0.22);         // under the mane
     softSpot(g, 470, 150, 60, '255,255,255', 0.42);         // pearly neck
-    softSpot(g, 560, 92, 40, '255,255,255', 0.5);           // forehead sheen
-    softSpot(g, 604, 176, 30, '212,104,156', 0.5);          // darker muzzle
-    softSpot(g, 566, 160, 24, '255,120,160', 0.32);         // rosy cheek
-    softSpot(g, 606, 160, 12, '255,255,255', 0.4);
+    softSpot(g, 562, 92, 34, '255,255,255', 0.45);          // forehead sheen
+    softSpot(g, 540, 150, 34, '255,255,255', 0.3);          // round cheek
+    // rounded muzzle: a touch darker, with a soft crease where it meets the cheek
+    softSpot(g, 612, 180, 34, '206,104,154', 0.52);
+    softSpot(g, 618, 166, 12, '255,255,255', 0.42);
+    softSpot(g, 584, 197, 12, '150,90,150', 0.3);           // chin groove
+    softSpot(g, 566, 158, 20, '255,116,160', 0.36);         // blush below the eye
     coatDots(g, 33, 404, 100, 520, 250, 7, 26, function (x, y) { return y < 150 && x > 440 && x < 520; });
     g.restore();
     smooth(g, NECK, 0.15); outline(g, 3);
 
-    // nostril
-    ellipsePath(g, 606, 171, 3.6, 5, 0.5);
-    g.fillStyle = 'rgba(150,56,110,0.6)'; g.fill();
+    // small nostril near the muzzle tip
+    ellipsePath(g, 619, 169, 3.2, 4.6, 0.55);
+    g.fillStyle = 'rgba(150,56,110,0.62)'; g.fill();
     // brow garland of tiny embossed flowers (poll -> horn base)
-    for (i = 0; i < 5; i++) flower(g, 516 + i * 9, 70 + i * 2.6, 5, '#f9b3d1', '#fff2f8', 5);
+    for (i = 0; i < 5; i++) flower(g, 522 + i * 8.4, 73 + i * 3.6, 4.8, '#f9b3d1', '#fff2f8', 5);
     // colored flower gems on the cheek and neck (pink, yellow, teal)
     flower(g, 506, 90, 9.5, '#f0507e', '#ffc3d3', 6);
     g.save(); g.translate(474, 105); g.rotate(-0.35);       // yellow butterfly-shaped gem
@@ -459,7 +463,7 @@
   }
 
   // Horn, tinted: color c ([r,g,b]); long slim spiral cone from the forehead
-  var HORN_PNG = [561, 70], HORN_ANG = -0.70, HORN_LEN = 78;
+  var HORN_PNG = [569, 78], HORN_ANG = -0.74, HORN_LEN = 76;
   function drawHorn(g, c) {
     g.save();
     g.translate(HORN_PNG[0], HORN_PNG[1]);
@@ -568,11 +572,19 @@
     g.restore();
   }
 
-  var ARM_L = [[176, 246], [124, 240], [72, 252], [38, 278], [34, 310], [58, 332], [110, 332], [170, 320]];
-  var ARM_R = [[336, 246], [392, 244], [444, 266], [482, 304], [490, 340], [464, 368], [416, 356], [344, 322]];
-  // seated: chubby legs hang down over Stella's side, ending in big round feet
-  var LEG_L = [[150, 492], [214, 492], [230, 540], [224, 592], [200, 640], [150, 660], [96, 646], [62, 606], [70, 560], [106, 522]];
-  var LEG_R = LEG_L.map(function (p) { return [512 - p[0], p[1]]; });
+  // Bongo rides in PROFILE (facing right, like Stella). Authored in the same
+  // 519x700-ish space as the front head, so both head sprites share a scale.
+  // capsule-like limb outline from S (root) to H (tip), half-widths w0 -> w1
+  function limb(S, H, w0, w1) {
+    var dx = H[0] - S[0], dy = H[1] - S[1], d = Math.hypot(dx, dy), ux = dx / d, uy = dy / d, nx = -uy, ny = ux;
+    function P(t, w, k) { return [S[0] + dx * t + nx * w + ux * k, S[1] + dy * t + ny * w + uy * k]; }
+    return [P(0, 0, -w0), P(0, -w0 * 0.75, -w0 * 0.6), P(0.3, -w0, 0), P(0.75, -w1, 0), P(1, -w1 * 0.8, w1 * 0.55), P(1, 0, w1),
+      P(1, w1 * 0.8, w1 * 0.55), P(0.75, w1, 0), P(0.3, w0, 0), P(0, w0 * 0.75, -w0 * 0.6)];
+  }
+  var S_SHOULDER = [298, 334], S_HAND = [420, 380];
+  var ARM_S = limb(S_SHOULDER, S_HAND, 36, 33);
+  // near leg: hangs down Stella's flank from the cuff of the shorts, big round foot
+  var LEG_S = [[262, 492], [346, 490], [360, 540], [384, 584], [398, 626], [372, 662], [300, 664], [262, 634], [254, 566]];
 
   // crochet stitches: staggered rows of little "v" loops with ridges between
   function crochet(g, x0, y0, x1, y1, seed) {
@@ -592,69 +604,100 @@
     }
   }
 
-  // Overall SHORTS: a narrower bib on top, wide shorts below with an open-mesh
-  // band (cream fur shows through the holes), two leg cuffs and a crotch notch.
-  var OVER = [[170, 270], [212, 276], [256, 278], [300, 276], [342, 270], [348, 322], [372, 340], [398, 352],
-    [405, 420], [402, 492], [396, 532], [344, 552], [292, 548], [256, 520], [220, 548], [168, 552],
-    [116, 532], [110, 492], [107, 420], [114, 352], [140, 340], [164, 322]];
+  // Overall SHORTS seen from the side: bib on the tummy, strap over the
+  // shoulder with a red button, open-mesh band, and the cuff the near leg comes out of.
+  var OVER_S = [[150, 440], [154, 372], [176, 350], [226, 346], [254, 336], [260, 300], [266, 274], [302, 268], [338, 274],
+    [352, 330], [360, 400], [362, 470], [366, 520], [352, 548], [300, 556], [248, 550], [196, 538], [162, 506]];
 
-  function drawBongoTorso(g) {
-    // cream body behind the overalls
-    var body = [[166, 236], [256, 226], [346, 236], [388, 296], [400, 400], [392, 500], [340, 536], [256, 542],
-      [172, 536], [120, 500], [112, 400], [124, 296]];
+  function drawBongoTorsoSide(g) {
+    var body = [[248, 230], [300, 240], [336, 282], [352, 352], [354, 432], [338, 504], [292, 538], [222, 542],
+      [170, 512], [150, 440], [156, 350], [184, 274]];
     furShape(g, body, 0.17, 43, { shade: 0.3 });
-    // shoulder straps (under the bib corners), going up and out over the shoulders
-    [[[152, 236], [184, 232], [200, 280], [166, 286]], [[360, 236], [328, 232], [312, 280], [346, 286]]].forEach(function (s) {
-      smooth(g, s, 0.12);
-      g.fillStyle = C.blue; g.fill();
-      g.save(); g.clip(); crochet(g, 140, 226, 372, 292, 5); g.restore();
-      smooth(g, s, 0.12); outline(g, 2.6, 'rgba(22,48,100,0.65)');
-    });
-    smooth(g, OVER, 0.13);
+    // strap: from the bib corner, over the shoulder, down the back
+    g.lineCap = 'round'; g.lineJoin = 'round';
+    g.beginPath(); g.moveTo(274, 288); g.quadraticCurveTo(232, 196, 168, 356);
+    g.lineWidth = 30; g.strokeStyle = 'rgba(22,48,100,0.75)'; g.stroke();
+    g.lineWidth = 25; g.strokeStyle = C.blue; g.stroke();
+    g.save(); g.setLineDash([5, 7]);
+    g.lineWidth = 15; g.strokeStyle = 'rgba(25,74,132,0.8)'; g.stroke();
+    g.lineWidth = 3; g.strokeStyle = 'rgba(120,176,230,0.6)'; g.stroke();
+    g.restore();
+    smooth(g, OVER_S, 0.13);
     g.fillStyle = C.blue; g.fill();
     g.save(); g.clip();
-    crochet(g, 100, 274, 412, 560, 77);
-    // open mesh band on the shorts: rounded holes with cream fur behind
-    var r, cc, row = 0;
-    var mr = mulberry(12);
-    for (r = 406; r <= 500; r += 18.5, row++) {
-      for (cc = 0; cc < 18; cc++) {
-        var hx = 120 + cc * 18.5 + (row % 2) * 9 + (mr() - 0.5) * 3, hy = r + (mr() - 0.5) * 3, hs = 4.6 + mr() * 1.4;
-        if (hx > 396) continue;
+    crochet(g, 140, 262, 376, 564, 77);
+    var mr = mulberry(12), r, cc, row = 0;
+    for (r = 408; r <= 500; r += 18.5, row++) {
+      for (cc = 0; cc < 14; cc++) {
+        var hx = 152 + cc * 18.5 + (row % 2) * 9 + (mr() - 0.5) * 3, hy = r + (mr() - 0.5) * 3, hs = 4.6 + mr() * 1.4;
         g.beginPath(); g.roundRect(hx - hs - 1.5, hy - hs - 2, hs * 2 + 3, hs * 2 + 3.5, 4);
         g.fillStyle = 'rgba(10,28,70,0.92)'; g.fill();
         g.beginPath(); g.roundRect(hx - hs + 0.5, hy - hs + 1, hs * 2 - 0.5, hs * 2 - 0.5, 3.4);
         g.fillStyle = mr() < 0.35 ? '#cdbb98' : '#eadfc6'; g.fill();
       }
     }
-    // waistband + hem ridges
-    g.lineCap = 'round';
-    [[344, 0.5], [394, 0.4], [510, 0.5]].forEach(function (b) {
-      g.beginPath(); g.moveTo(100, b[0]); g.quadraticCurveTo(256, b[0] + 6, 412, b[0]);
+    // waistband, mesh edge and leg-cuff ridges
+    [[346, 0.5], [394, 0.4], [516, 0.55], [532, 0.4]].forEach(function (b) {
+      g.beginPath(); g.moveTo(140, b[0]); g.quadraticCurveTo(256, b[0] + 6, 376, b[0]);
       g.lineWidth = 4; g.strokeStyle = 'rgba(14,38,88,' + b[1] + ')'; g.stroke();
-      g.beginPath(); g.moveTo(100, b[0] - 4); g.quadraticCurveTo(256, b[0] + 2, 412, b[0] - 4);
+      g.beginPath(); g.moveTo(140, b[0] - 4); g.quadraticCurveTo(256, b[0] + 2, 376, b[0] - 4);
       g.lineWidth = 2; g.strokeStyle = 'rgba(120,176,230,0.45)'; g.stroke();
     });
-    // crotch seam between the two leg cuffs
-    g.beginPath(); g.moveTo(256, 498); g.lineTo(256, 524);
-    g.lineWidth = 3; g.strokeStyle = 'rgba(14,38,88,0.5)'; g.stroke();
-    // gentle painterly shading
-    g.fillStyle = lin(g, 110, 0, 405, 0, [[0, 'rgba(10,24,70,0.22)'], [0.25, 'rgba(255,255,255,0.1)'], [0.6, 'rgba(0,0,0,0)'], [1, 'rgba(10,24,70,0.3)']]);
-    g.fillRect(100, 260, 320, 300);
-    g.fillStyle = lin(g, 0, 270, 0, 552, [[0, 'rgba(255,255,255,0.14)'], [0.6, 'rgba(0,0,0,0)'], [1, 'rgba(10,20,60,0.28)']]);
-    g.fillRect(100, 260, 320, 300);
+    g.fillStyle = lin(g, 150, 0, 366, 0, [[0, 'rgba(10,24,70,0.3)'], [0.3, 'rgba(0,0,0,0)'], [0.7, 'rgba(255,255,255,0.1)'], [1, 'rgba(10,24,70,0.16)']]);
+    g.fillRect(140, 270, 240, 300);
+    g.fillStyle = lin(g, 0, 280, 0, 556, [[0, 'rgba(255,255,255,0.14)'], [0.6, 'rgba(0,0,0,0)'], [1, 'rgba(10,20,60,0.28)']]);
+    g.fillRect(140, 270, 240, 300);
     g.restore();
-    smooth(g, OVER, 0.13); outline(g, 3, 'rgba(22,48,100,0.7)');
-    // red buttons on the bib corners
-    [[182, 280], [330, 280]].forEach(function (b) {
-      var bx = b[0], by = b[1];
-      dot(g, bx, by + 1, 17, 'rgba(120,24,40,0.85)');
-      dot(g, bx, by, 15.5, '#e23c44');
-      g.beginPath(); g.arc(bx, by, 10.5, 0, TAU); g.lineWidth = 2; g.strokeStyle = 'rgba(150,24,36,0.6)'; g.stroke();
-      ellipsePath(g, bx - 5, by - 8, 6.5, 3, -0.5); g.fillStyle = 'rgba(255,255,255,0.6)'; g.fill();
-      dot(g, bx - 3.6, by - 3.6, 2.1, '#7a1a20'); dot(g, bx + 3.6, by - 3.6, 2.1, '#7a1a20');
-      dot(g, bx - 3.6, by + 3.6, 2.1, '#7a1a20'); dot(g, bx + 3.6, by + 3.6, 2.1, '#7a1a20');
-    });
+    smooth(g, OVER_S, 0.13); outline(g, 3, 'rgba(22,48,100,0.7)');
+    // red button on the bib corner
+    var bx = 278, by = 290;
+    dot(g, bx, by + 1, 17, 'rgba(120,24,40,0.85)');
+    dot(g, bx, by, 15.5, '#e23c44');
+    g.beginPath(); g.arc(bx, by, 10.5, 0, TAU); g.lineWidth = 2; g.strokeStyle = 'rgba(150,24,36,0.6)'; g.stroke();
+    ellipsePath(g, bx - 5, by - 8, 6.5, 3, -0.5); g.fillStyle = 'rgba(255,255,255,0.6)'; g.fill();
+    dot(g, bx - 3.6, by - 3.6, 2.1, '#7a1a20'); dot(g, bx + 3.6, by - 3.6, 2.1, '#7a1a20');
+    dot(g, bx - 3.6, by + 3.6, 2.1, '#7a1a20'); dot(g, bx + 3.6, by + 3.6, 2.1, '#7a1a20');
+  }
+
+  // Profile head: round skull, the big pale muzzle sticking out in front with
+  // the black nose on its tip, the near ear on the upper back of the head.
+  var MZS = [378, 178, 60, 47];
+  function drawBongoHeadSide(g) {
+    function ring(x, y, rx, ry, n) {
+      var pts = [], q;
+      for (q = 0; q < n; q++) pts.push([x + Math.cos(q / n * TAU) * rx, y + Math.sin(q / n * TAU) * ry]);
+      return pts;
+    }
+    function inner(x, y, r) {
+      ellipsePath(g, x, y + 2, r * 0.6, r * 0.62, 0);
+      g.fillStyle = rad(g, x, y + 4, 2, r * 0.66, [[0, '#d9bf98'], [0.7, '#e2cba6'], [1, 'rgba(232,214,180,0)']]); g.fill();
+    }
+    furShape(g, ring(306, 46, 34, 34, 10), 0.18, 54, { tuft: 8, shade: 0.45 });       // far ear, peeking over
+    furShape(g, ring(268, 142, 124, 114, 12), 0.18, 51, { tuft: 11, shade: 0.32 });   // skull
+    softSpot(g, 322, 188, 30, '246,140,150', 0.42);                                   // rosy cheek
+    // muzzle
+    ellipsePath(g, MZS[0], MZS[1] + 3, MZS[2] + 3, MZS[3] + 3, 0);
+    g.fillStyle = 'rgba(176,142,110,0.3)'; g.fill();
+    ellipsePath(g, MZS[0], MZS[1], MZS[2], MZS[3], 0);
+    g.fillStyle = rad(g, MZS[0] - 6, MZS[1] - 18, 6, 84, [[0, '#fffaf0'], [0.6, '#f6ead2'], [1, '#e2cfac']]);
+    g.fill();
+    g.save(); g.clip();
+    var rnd = mulberry(52);
+    for (var i = 0; i < 60; i++) {
+      var x = MZS[0] - MZS[2] + rnd() * MZS[2] * 2, y = MZS[1] - MZS[3] + rnd() * MZS[3] * 2;
+      dot(g, x, y, 1.2 + rnd() * 1.2, rnd() < 0.5 ? 'rgba(255,255,255,0.7)' : 'rgba(190,160,120,0.22)');
+    }
+    g.restore();
+    ellipsePath(g, MZS[0], MZS[1], MZS[2], MZS[3], 0); outline(g, 2.2, 'rgba(140,106,120,0.45)');
+    // nose on the tip
+    var nose = [[410, 138], [426, 134], [440, 142], [444, 156], [434, 166], [420, 162], [410, 150]];
+    smooth(g, nose, 0.2);
+    g.fillStyle = lin(g, 0, 134, 0, 166, [[0, '#4a3c44'], [1, '#1f171c']]); g.fill();
+    ellipsePath(g, 424, 142, 8, 3.4, 0.2);
+    g.fillStyle = 'rgba(255,255,255,0.5)'; g.fill();
+    // near ear on top, in front of the skull
+    furShape(g, ring(204, 66, 42, 42, 10), 0.18, 53, { tuft: 8, shade: 0.25 });
+    inner(206, 66, 42);
   }
 
   // Head (traced): big and round, wider than tall; round ears; a large round
@@ -722,6 +765,7 @@
     return cc;
   }
 
+  var HEAD_PIV = [268, 238];                  // Bongo's neck (profile space)
   var cache = [];     // 2 most recent scales
 
   function build(ppu) {
@@ -735,17 +779,17 @@
     P.hoofNear = makeSpr(ppu, [-26, -18, 42, 50], function (g) { drawHoof(g, false); });
     P.hoofFar = makeSpr(ppu, [-26, -18, 42, 50], function (g) { drawHoof(g, true); });
 
-    P.bArmL = bPart(ppu, [164, 276], [18, 224, 190, 348], function (g) { furShape(g, ARM_L, 0.2, 61, { tuft: 9 }); });
-    P.bArmR = bPart(ppu, [348, 276], [322, 228, 506, 384], function (g) { furShape(g, ARM_R, 0.2, 62, { tuft: 9 }); });
-    P.bTail = bPart(ppu, [140, 500], [46, 452, 150, 552], function (g) {
+    P.bArm = bPart(ppu, S_SHOULDER, [250, 280, 472, 432], function (g) { furShape(g, ARM_S, 0.2, 61, { tuft: 9 }); });
+    P.bArmFar = bPart(ppu, S_SHOULDER, [250, 280, 472, 432], function (g) { furShape(g, ARM_S, 0.2, 62, { tuft: 9, shade: 0.75 }); });
+    P.bTail = bPart(ppu, [176, 492], [96, 440, 196, 546], function (g) {
       var pts = [], n = 10;
-      for (var q = 0; q < n; q++) { var a = q / n * TAU; pts.push([96 + Math.cos(a) * 34, 502 + Math.sin(a) * 33]); }
+      for (var q = 0; q < n; q++) { var a = q / n * TAU; pts.push([146 + Math.cos(a) * 36, 492 + Math.sin(a) * 35]); }
       furShape(g, pts, 0.18, 44, { tuft: 9, dens: 40 });
     });
-    P.bLegL = bPart(ppu, [184, 506], [44, 474, 244, 676], function (g) { furShape(g, LEG_L, 0.17, 41, { tuft: 11 }); });
-    P.bLegR = bPart(ppu, [328, 506], [268, 474, 468, 676], function (g) { furShape(g, LEG_R, 0.17, 42, { tuft: 11 }); });
-    P.bTorso = bPart(ppu, [256, 530], [94, 210, 418, 560], drawBongoTorso);
-    P.bHead = bPart(ppu, [256, 236], [70, 14, 442, 274], drawBongoHead);
+    P.bLeg = bPart(ppu, [304, 506], [236, 474, 414, 680], function (g) { furShape(g, LEG_S, 0.17, 41, { tuft: 11 }); });
+    P.bTorso = bPart(ppu, [256, 530], [132, 214, 384, 572], drawBongoTorsoSide);
+    P.bHeadS = bPart(ppu, HEAD_PIV, [128, -6, 456, 276], drawBongoHeadSide);
+    P.bHead = bPart(ppu, [256, 236], [70, 14, 442, 274], drawBongoHead);       // front face, for looking at the player
 
     // tinted lights: horn + glow halos, 24 hue steps (rendered once)
     P.horn = []; P.hornGlow = []; P.bflyGlow = [];
@@ -811,8 +855,8 @@
     nh: { hip: R(196, 326), rest: [0.02, 0.6], ph: Math.PI + 0.35, front: false, far: false, A: 222, B: 166 },
     fh: { hip: R(176, 336), rest: [-0.16, -0.5], ph: Math.PI + 0.85, front: false, far: true, A: 222, B: 166 }
   };
-  var WID_FRONT = [50, 42, 31, 24, 20.5, 18, 16.5, 15.5, 16.5];
-  var WID_HIND = [64, 54, 37, 27, 22.5, 19.5, 17.5, 16.5, 17.5];
+  var WID_FRONT = [54, 46, 35, 27, 23, 20, 18.5, 17.5, 18.5];
+  var WID_HIND = [68, 58, 42, 31, 25.5, 22, 19.5, 18.5, 19.5];
   var SPX = new Float64Array(9), SPY = new Float64Array(9), LX = new Float64Array(9), LY = new Float64Array(9),
     RX = new Float64Array(9), RY = new Float64Array(9);
 
@@ -888,13 +932,13 @@
   function legDraw(g, lp, P) {
     var gr = g.createLinearGradient(lp.hx, lp.hy, lp.fx, lp.fy), st = g.createLinearGradient(lp.hx, lp.hy, lp.fx, lp.fy);
     if (lp.far) {
-      gr.addColorStop(0, '#d9a2c4'); gr.addColorStop(1, '#c78cb6');
+      gr.addColorStop(0, '#d2a0be'); gr.addColorStop(1, '#bf8bb0');
       g.fillStyle = gr; g.fill(lp.p);
       g.strokeStyle = C.line; g.lineWidth = 3; g.stroke(lp.p);
     } else {
       // the top fades into the body so thigh and shoulder melt into the torso
-      gr.addColorStop(0, 'rgba(226,170,202,0)'); gr.addColorStop(0.07, 'rgba(226,170,202,0)');
-      gr.addColorStop(0.22, 'rgba(228,172,204,1)'); gr.addColorStop(0.6, '#ecb6d2'); gr.addColorStop(1, '#e3a6c8');
+      gr.addColorStop(0, 'rgba(220,168,198,0)'); gr.addColorStop(0.07, 'rgba(220,168,198,0)');
+      gr.addColorStop(0.22, 'rgba(222,170,200,1)'); gr.addColorStop(0.6, '#e6b4cd'); gr.addColorStop(1, '#dca6c4');
       st.addColorStop(0, 'rgba(' + C.lineRGB + ',0)'); st.addColorStop(0.1, 'rgba(' + C.lineRGB + ',0)');
       st.addColorStop(0.26, 'rgba(' + C.lineRGB + ',0.66)'); st.addColorStop(1, 'rgba(' + C.lineRGB + ',0.66)');
       g.fillStyle = gr; g.fill(lp.p);
@@ -905,7 +949,17 @@
     place(g, lp.far ? P.hoofFar : P.hoofNear, lp.fx, lp.fy, lp.hr);
   }
 
-  var SEAT = B(256, 530);
+  var SEAT = B(250, 530);
+
+  // Bongo glances at the player now and then: about 1.5 s every 4-7 s, eased over 0.25 s
+  function autoFace(t) {
+    var u = ((t % 16.5) + 16.5) % 16.5, f = 0, w = [[4.4, 6.1], [10.8, 12.4]], i;
+    for (i = 0; i < 2; i++) {
+      var a = Math.min((u - w[i][0]) / 0.25, (w[i][1] - u) / 0.25);
+      if (a > f) f = a;
+    }
+    return f > 1 ? 1 : f;
+  }
 
   function draw(g, pose, ppu) {
     var E = prerender(ppu), P = E.P;
@@ -917,7 +971,7 @@
     var br = Math.sin(t * 1.9) * (1 - run * 0.5);
     var by = run * 9 * Math.sin(ph + 2.2) + br * 1.6;        // one soft bound per stride + breathing
     var rock = run * 0.035 * Math.sin(ph + 0.4);             // nose lifts as the forelegs reach out
-    var k, lp;
+    var k, bl = Math.max(blink(t, 1.7), happy);
 
     g.save();
     g.lineJoin = 'round'; g.lineCap = 'round';
@@ -943,42 +997,58 @@
     var neckItem = [P.neck.s, nx, ny, na];
     items.push(neckItem);
 
-    // Bongo: the whole bear sways around his seat, limbs and head follow loosely
+    // Bongo rides in profile: the whole bear sways around his seat, limbs and head follow loosely
     var bounce = -run * 6 * (0.5 + 0.5 * Math.sin(ph + 3.4));
     var bo = by + bounce - br * 0.8;
-    var sway = 0.022 * Math.sin(t * 1.25) + run * 0.045 * Math.sin(ph + 2.6) + wave * 0.03;
+    var sway = 0.02 * Math.sin(t * 1.25) + run * 0.05 * Math.sin(ph + 2.6) - run * 0.05;
     var cs = Math.cos(sway), sn = Math.sin(sway);
-    function bItem(part, rot) {
-      var dx = part.x - SEAT[0], dy = part.y - SEAT[1];
+    function bItem(part, rot, px, py) {
+      var dx = (px === undefined ? part.x : px) - SEAT[0], dy = (py === undefined ? part.y : py) - SEAT[1];
       return [part.s, SEAT[0] + dx * cs - dy * sn, SEAT[1] + bo + dx * sn + dy * cs, sway + rot];
     }
-    var armL = 0.06 + run * 0.22 * Math.sin(ph + 1.6) + 0.05 * Math.sin(t * 1.7) + happy * 0.25;
-    var armRsw = -0.04 + run * 0.22 * Math.sin(ph + 0.4) + 0.05 * Math.sin(t * 1.9 + 1) - happy * 0.25;
-    var armRw = -1.45 + 0.3 * Math.sin(t * 10);
-    var armR = armRsw + (armRw - armRsw) * wave;
-    var ha = 0.035 * Math.sin(t * 1.6) + run * 0.05 * Math.sin(ph + 1.2) + wave * 0.07 - happy * 0.04 - sway * 0.5;
-    var lgL = 0.05 * Math.sin(t * 1.5 + 0.6) + run * 0.16 * Math.sin(ph + 0.9);
-    var lgR = 0.05 * Math.sin(t * 1.5 + 2.2) + run * 0.16 * Math.sin(ph + 1.7);
+    // face: 0 = profile, 1 = turned to the player (auto every few seconds, or set by the caller)
+    var face = pose.face === undefined ? autoFace(t) : pose.face;
+    face = Math.max(face < 0 ? 0 : face > 1 ? 1 : face, Math.min(1, (pose.wave || 0) * 3));
+    var fs = smoothstep(face);
+    var smile = Math.max(happy, wave * 0.7, pose.face === undefined ? fs * 0.6 : 0);
+    var arm = 0.04 * Math.sin(t * 1.7) + run * 0.07 * Math.sin(ph + 1.6) - sway * 0.8 - happy * 0.3;
+    var armW = -1.65 + 0.28 * Math.sin(t * 10);
+    arm += (armW - arm) * wave;
+    var ha = 0.03 * Math.sin(t * 1.6) + run * 0.05 * Math.sin(ph + 1.2) - happy * 0.04 - sway * 0.5;
+    var lg = 0.05 * Math.sin(t * 1.5 + 0.6) + run * 0.14 * Math.sin(ph + 0.9);
     items.push(bItem(P.bTail, 0.12 * Math.sin(t * 2.2) + run * 0.25 * Math.sin(ph + 2.2)));
-    items.push(bItem(P.bArmL, armL));
-    var armRItem = bItem(P.bArmR, armR);
-    if (wave <= 0.25) items.push(armRItem);
-    items.push(bItem(P.bLegL, lgL));
-    items.push(bItem(P.bLegR, lgR));
+    items.push(bItem(P.bArmFar, arm * 0.4 - 0.16 + run * 0.06 * Math.sin(ph + 2.4), P.bArmFar.x + 16, P.bArmFar.y - 16));
+    items.push(bItem(P.bLeg, lg));
     items.push(bItem(P.bTorso, 0));
-    var headItem = bItem(P.bHead, ha);
-    items.push(headItem);
-    if (wave > 0.25) items.push(armRItem);       // waving arm in front of the head
+    // the two heads share the neck pivot; the outgoing one squashes away under the incoming one
+    var hp = B(HEAD_PIV[0], HEAD_PIV[1]);
+    var sq = 1 - 0.16 * Math.sin(Math.PI * fs);
+    var headS = null, headF = null;
+    if (fs < 0.999) { headS = bItem(P.bHeadS, ha + 0.1 * fs); headS[4] = sq; headS[5] = Math.min(1, 2 * (1 - fs)); items.push(headS); }
+    if (fs > 0.001) { headF = bItem(P.bHead, ha * 0.8 + 0.06 * (1 - fs) - 0.09 * wave, hp[0] - (14 + 22 * wave) * BK * fs, hp[1]); headF[4] = sq; headF[5] = Math.min(1, 2 * fs); items.push(headF); }
+    items.push(bItem(P.bArm, arm));              // near arm: on her mane, or waving in front of the head
 
     // pass 1: white sticker halos
     legHalo(g, lFH, P); legHalo(g, lFF, P); legHalo(g, lNH, P); legHalo(g, lNF, P);
     var n = items.length;
-    for (k = 0; k < n; k++) placeHalo(g, items[k][0], items[k][1], items[k][2], items[k][3]);
+    for (k = 0; k < n; k++) {
+      if (items[k][5] !== undefined && items[k][5] < 0.6) continue;
+      placeHalo(g, items[k][0], items[k][1], items[k][2], items[k][3]);
+    }
 
     // pass 2: far legs, then sprites in order with live overlays at their z
     legDraw(g, lFH, P); legDraw(g, lFF, P);
     for (k = 0; k < n; k++) {
       var it = items[k];
+      if (it === headS || it === headF) {
+        g.save();
+        g.translate(it[1], it[2]); g.rotate(it[3]); g.scale(it[4], 1);
+        g.globalAlpha = it[5];
+        g.drawImage(it[0], it[0].ox, it[0].oy, it[0].lw, it[0].lh);
+        if (it === headS) bongoFaceSide(g, bl, smile); else bongoFace(g, bl, smile);
+        g.restore();
+        continue;
+      }
       place(g, it[0], it[1], it[2], it[3]);
       if (it === bodyItem) {
         legDraw(g, lNH, P); legDraw(g, lNF, P);
@@ -990,12 +1060,6 @@
         g.translate(nx, ny); g.rotate(na);
         hornLight(g, P, t, glow);
         stellaFace(g, t, happy);
-        g.restore();
-      }
-      if (it === headItem) {
-        g.save();
-        g.translate(it[1], it[2]); g.rotate(it[3]);
-        bongoFace(g, t, happy, wave);
         g.restore();
       }
     }
@@ -1050,62 +1114,65 @@
     g.restore();
   }
 
-  // Stella's big blue eye and her smile (local = neck pivot coords, rig scale)
-  var S_EYE = R(563, 117), S_MOUTH = [R(615, 187), R(600, 201), R(581, 186)];
+  // Stella's gentle eye and her smile (local = neck pivot coords, rig scale)
+  var S_EYE = R(564, 122), S_MOUTH = [R(626, 189), R(614, 198), R(602, 189)];
   function stellaFace(g, t, happy) {
     var x = S_EYE[0] - PN[0], y = S_EYE[1] - PN[1];
     var open = 1 - Math.max(blink(t, 0), happy);
     g.lineCap = 'round'; g.lineJoin = 'round';
     if (open > 0.25) {
-      var ry = 17 * open, rx = 13;
-      g.beginPath(); g.ellipse(x, y, rx, ry, 0.12, 0, TAU);
+      var rx = 13.5, ry = 17 * open;
+      g.save();
+      g.translate(x, y); g.rotate(0.2);
+      g.beginPath(); g.ellipse(0, 0, rx, ry, 0, 0, TAU);
       g.fillStyle = '#fbfdff'; g.fill();
       g.save(); g.clip();
-      g.beginPath(); g.ellipse(x + 1, y + 1.5, 11, Math.min(ry, 13), 0, 0, TAU);
-      g.fillStyle = lin(g, x, y - 13, x, y + 13, [[0, '#2f7fc6'], [0.6, '#62b6e8'], [1, '#aee2f6']]); g.fill();
-      dot(g, x + 1, y + 1.5, 6 * Math.min(1, open + 0.2), '#26264a');
+      g.beginPath(); g.ellipse(1.5, 2, 11, 13.5, 0, 0, TAU);
+      g.fillStyle = lin(g, 0, -12, 0, 15, [[0, '#2a6fb8'], [0.55, '#55aae2'], [1, '#aee2f6']]); g.fill();
+      dot(g, 1.5, 2.5, 7.4, '#22223f');
+      dot(g, -3, -4, 4.4, 'rgba(255,255,255,0.97)');
+      dot(g, 5.5, 8, 2.2, 'rgba(255,255,255,0.85)');
+      // relaxed upper lid
+      g.beginPath(); g.moveTo(-rx - 2, -ry * 0.2); g.quadraticCurveTo(-1, -ry * 1.05, rx + 2, -ry * 0.42);
+      g.lineTo(rx + 2, -ry - 2); g.lineTo(-rx - 2, -ry - 2); g.closePath();
+      g.fillStyle = '#e3a9c8'; g.fill();
       g.restore();
-      dot(g, x - 3.5, y - 6 * open, 3.8, 'rgba(255,255,255,0.97)');
-      dot(g, x + 5, y + 6 * open, 1.9, 'rgba(255,255,255,0.85)');
-      g.beginPath(); g.ellipse(x, y, rx, ry, 0.12, 0, TAU);
-      g.lineWidth = 2; g.strokeStyle = 'rgba(70,50,110,0.6)'; g.stroke();
-      // soft upper lash line, lifted at the outer corner, with three lashes
-      g.lineWidth = 3; g.strokeStyle = C.ink;
-      g.beginPath(); g.ellipse(x, y, rx + 0.8, ry + 0.8, 0.12, Math.PI * 0.98, Math.PI * 1.72); g.stroke();
+      g.beginPath(); g.ellipse(0, 0, rx, ry, 0, 0, TAU);
+      g.lineWidth = 1.8; g.strokeStyle = 'rgba(70,50,110,0.5)'; g.stroke();
+      // lash line along the lid, sweeping out softly at the back corner
+      g.beginPath(); g.moveTo(-rx - 7, -ry * 0.2 - 5); g.quadraticCurveTo(-rx - 3, -ry * 0.2, -rx + 1, -ry * 0.36);
+      g.quadraticCurveTo(-1, -ry * 1.0, rx + 0.5, -ry * 0.42);
+      g.lineWidth = 3.6; g.strokeStyle = C.ink; g.stroke();
       g.lineWidth = 2.4;
-      for (var i = 0; i < 3; i++) {
-        var a = Math.PI * (1.04 + i * 0.19), ex = x + Math.cos(a) * (rx + 1), ey = y + Math.sin(a) * (ry + 1);
-        g.beginPath(); g.moveTo(ex, ey); g.lineTo(ex + Math.cos(a - 0.2) * 9, ey + Math.sin(a - 0.2) * 9); g.stroke();
-      }
+      g.beginPath(); g.moveTo(-rx + 1.5, -ry * 0.5); g.quadraticCurveTo(-rx - 3, -ry * 0.62, -rx - 6.5, -ry * 0.62 - 5); g.stroke();
+      g.beginPath(); g.moveTo(-rx + 5, -ry * 0.72); g.quadraticCurveTo(-rx + 2, -ry * 0.9, -rx, -ry * 0.9 - 6); g.stroke();
+      g.restore();
     } else {
       // closed: a happy upward-curved lash line
       g.lineWidth = 4; g.strokeStyle = C.ink;
-      g.beginPath(); g.arc(x, y + 8, 13, Math.PI * 1.14, Math.PI * 1.86); g.stroke();
+      g.beginPath(); g.arc(x, y + 9, 14, Math.PI * 1.16, Math.PI * 1.84); g.stroke();
       g.lineWidth = 2.4;
-      g.beginPath(); g.moveTo(x - 11, y - 1); g.lineTo(x - 19, y - 5); g.stroke();
-      g.beginPath(); g.moveTo(x - 6, y - 4); g.lineTo(x - 12, y - 11); g.stroke();
+      g.beginPath(); g.moveTo(x - 12, y); g.quadraticCurveTo(x - 16, y - 1, x - 19, y - 6); g.stroke();
+      g.beginPath(); g.moveTo(x - 7, y - 3.5); g.quadraticCurveTo(x - 10, y - 6, x - 11, y - 11); g.stroke();
     }
-    // smile: runs back from the lips and turns up into the cheek
+    // smile: a short soft curve at the muzzle tip, turning up toward the cheek
     var m0 = S_MOUTH[0], m1 = S_MOUTH[1], m2 = S_MOUTH[2];
-    var ax = m0[0] - PN[0], ay = m0[1] - PN[1], cx = m1[0] - PN[0], cy = m1[1] - PN[1] + happy * 9,
-      bx = m2[0] - PN[0] - happy * 4, by = m2[1] - PN[1] - happy * 6;
+    var ax = m0[0] - PN[0], ay = m0[1] - PN[1], cx = m1[0] - PN[0], cy = m1[1] - PN[1] + happy * 8,
+      bx = m2[0] - PN[0] - happy * 5, by = m2[1] - PN[1] - happy * 6;
     if (happy > 0.3) {
-      g.beginPath(); g.moveTo(ax, ay); g.quadraticCurveTo(cx, cy + 4, bx, by); g.quadraticCurveTo(cx, cy - 12, ax, ay);
+      g.beginPath(); g.moveTo(ax, ay); g.quadraticCurveTo(cx, cy + 6, bx, by); g.quadraticCurveTo(cx, cy - 12, ax, ay);
       g.fillStyle = 'rgba(190,60,110,' + (0.75 * (happy - 0.3) / 0.7) + ')'; g.fill();
     }
     g.beginPath(); g.moveTo(ax, ay); g.quadraticCurveTo(cx, cy, bx, by);
-    g.lineWidth = 4; g.strokeStyle = 'rgba(150,44,104,0.9)'; g.stroke();
-    g.beginPath(); g.arc(bx - 1, by - 1, 5, 0.3, 2.2);                 // dimple at the corner
-    g.lineWidth = 2.6; g.strokeStyle = 'rgba(150,44,104,0.6)'; g.stroke();
+    g.quadraticCurveTo(bx - 3, by - 3, bx - 3.5, by - 6.5);
+    g.lineWidth = 3.8; g.strokeStyle = 'rgba(150,44,104,0.9)'; g.stroke();
   }
 
-  // Bongo's eyes, brows and smile (local = head pivot coords)
+  // Bongo's front face: eyes, brows and smile (local = front head pivot coords)
   var B_HEAD = B(256, 236);
-  function bongoFace(g, t, happy, wave) {
+  function bongoFace(g, bl, smile) {
     var s = BK;
     function ex(x, y) { var p = B(x, y); return [p[0] - B_HEAD[0], p[1] - B_HEAD[1]]; }
-    var bl = Math.max(blink(t, 1.7), happy);
-    var smile = Math.max(happy, wave * 0.7);
     var le = ex(206, 126), re = ex(306, 126), m = ex(256, 140);
     g.lineCap = 'round'; g.lineJoin = 'round';
     // small raised brows: open, friendly
@@ -1126,7 +1193,6 @@
         dot(g, p[0], p[1], 9 * s, '#1e161a');
         dot(g, p[0] - 3 * s, p[1] - 3.5 * s, 3.6 * s, 'rgba(255,255,255,0.95)');
         dot(g, p[0] + 3.5 * s, p[1] + 3.5 * s, 1.6 * s, 'rgba(255,255,255,0.6)');
-        // little smiling crease under the eye
         g.beginPath(); g.arc(p[0], p[1] + 3 * s, 15 * s, 0.25 * Math.PI, 0.75 * Math.PI);
         g.lineWidth = 2.4 * s; g.strokeStyle = 'rgba(160,120,96,0.45)'; g.stroke();
       });
@@ -1154,6 +1220,38 @@
     g.stroke();
   }
 
+  // Bongo's profile face: one small eye, a brow, and the smile on the side of the muzzle
+  function bongoFaceSide(g, bl, smile) {
+    var s = BK;
+    function ex(x, y) { return [(x - HEAD_PIV[0]) * s, (y - HEAD_PIV[1]) * s]; }
+    var e = ex(338, 122), lift = (6 + smile * 5) * s;
+    g.lineCap = 'round'; g.lineJoin = 'round';
+    g.lineWidth = 4 * s; g.strokeStyle = 'rgba(150,116,84,0.55)';
+    g.beginPath(); g.moveTo(e[0] - 11 * s, e[1] - 15 * s - lift); g.quadraticCurveTo(e[0], e[1] - 24 * s - lift, e[0] + 10 * s, e[1] - 19 * s - lift); g.stroke();
+    if (bl > 0.5) {
+      g.lineWidth = 6 * s; g.strokeStyle = '#2b2025';
+      g.beginPath(); g.arc(e[0], e[1] + 7 * s, 11 * s, Math.PI * 1.13, Math.PI * 1.87); g.stroke();
+    } else {
+      dot(g, e[0], e[1], 9.5 * s, '#1e161a');
+      dot(g, e[0] + 2.5 * s, e[1] - 3.5 * s, 3.6 * s, 'rgba(255,255,255,0.95)');
+      dot(g, e[0] - 3 * s, e[1] + 3.5 * s, 1.6 * s, 'rgba(255,255,255,0.6)');
+      g.beginPath(); g.arc(e[0], e[1] + 3 * s, 15 * s, 0.25 * Math.PI, 0.75 * Math.PI);
+      g.lineWidth = 2.4 * s; g.strokeStyle = 'rgba(160,120,96,0.45)'; g.stroke();
+    }
+    if (smile > 0.05) { var c = ex(322, 190); dot(g, c[0], c[1], 20 * s * smile, 'rgba(244,130,140,0.4)'); }
+    // stitch down the front of the muzzle, then the smile running back and up
+    var a = ex(430, 164), b = ex(424, 188 + smile * 3), q = ex(396, 210 + smile * 14), c2 = ex(368, 190 - smile * 5);
+    if (smile > 0.5) {
+      g.beginPath(); g.moveTo(b[0], b[1]); g.quadraticCurveTo(q[0], q[1] + 16 * s, c2[0], c2[1]); g.quadraticCurveTo(q[0], q[1] - 12 * s, b[0], b[1]);
+      g.fillStyle = 'rgba(206,84,108,' + ((smile - 0.5) * 2) + ')'; g.fill();
+    }
+    g.lineWidth = 6.4 * s; g.strokeStyle = '#33252a';
+    g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]);
+    g.quadraticCurveTo(q[0], q[1], c2[0], c2[1]);
+    g.quadraticCurveTo(c2[0] - 5 * s, c2[1] - 5 * s, c2[0] - 4 * s, c2[1] - 10 * s);
+    g.stroke();
+  }
+
   // ------------------------------------------------------------- anchors
   // Rest-pose points in rig units. "follows" notes which part moves them.
   var A = {
@@ -1161,12 +1259,12 @@
     stellaBelly: R(320, 372),       // body
     stellaChest: R(512, 352),       // body, just under the butterfly light
     stellaNeck: R(452, 176),        // neck (swings a little around neck base)
-    stellaCheek: R(566, 160),       // head (follows the neck)
+    stellaCheek: R(556, 166),       // head (follows the neck)
     stellaLegBack: R(200, 428),     // top of the near hind leg (moves little)
     stellaLegFront: R(500, 420),    // top of the near front leg (moves little)
-    bongoCheek: B(176, 186),        // Bongo head
-    bongoTummy: B(256, 372),        // Bongo torso (overalls bib)
-    bongoArm: B(82, 290),           // Bongo's left arm (viewer's left)
+    bongoCheek: B(318, 190),        // Bongo head (profile cheek)
+    bongoTummy: B(300, 404),        // Bongo torso (side of the overalls)
+    bongoArm: B(360, 346),          // Bongo's near arm (reaching to the mane)
     body: { x: 450, y: 560, r: 330 }
   };
 
