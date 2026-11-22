@@ -75,7 +75,10 @@ Phones keep the game files for offline play (`sw.js`). After changing any file, 
 - `js/art.js`: watercolor drawings (sky, hills, stars, clouds, mud, rainbow, bubbles)
 - `js/audio.js`: sounds and music made in code, plus voice cues
 - `js/characters.js`: Bella and Bongo, drawn and animated
-- `js/game.js`: the game itself
+- `js/core.js`: the shared core (screen, touch, buttons, saving, moving between places)
+- `js/backdrop.js`: the sky, hills and day/night cycle behind every place
+- `js/scenes/title.js`: the start page
+- `js/scenes/stars.js`: the star game
 - `manifest.webmanifest`, `sw.js`: home-screen install and offline play
 - `assets/icons/`: app and tab icons, drawn by `tools/icons.html` from the game art (open it with `?size=512`; `?pad=0.12` for the maskable icon, `?crop=head` for the tab icon)
 - `assets/fonts/title.woff2`: the start page name, a few letters of Comfortaa Bold (SIL Open Font License, see `assets/fonts/OFL.txt`)

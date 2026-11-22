@@ -1,21 +1,18 @@
-/* game.js - gameplay for "Bella e Bongo". Classic script, no modules.
- * Uses window.Art (sprites/painting) and window.Sound (audio, never allowed to break the game). */
+/* scenes/stars.js - the star game: fly and collect stars, mud cloud, wash, +5 bonus.
+ * Modes: toFly -> fly -> toWash -> wash -> clean -> toFly ('off' while another scene runs).
+ * Registers the 'stars' scene with window.Core (home: 'title', day/night cycle on).
+ * enter({hero: {x, y, h}}) starts a new game, flying in from that spot.
+ * Uses window.Art, window.Characters, window.Backdrop; audio only through Core.snd.
+ * Adds window.__bella.stars = {st, pose, addPoints, cleanAll, getDirty} for the tests.
+ */
 (function () {
   'use strict';
 
-  var Art = window.Art, Sound = window.Sound;
+  var Art = window.Art, Core = window.Core, Backdrop = window.Backdrop;
   var TAU = Math.PI * 2;
-  var cv = document.getElementById('game');
-  var ctx = cv.getContext('2d');
-  var muteBtn = document.getElementById('mute');
-  var homeBtn = document.getElementById('home');
 
   // ------------------------------------------------------------ small utils
-  function snd(name) {
-    try {
-      if (Sound && Sound[name]) return Sound[name].apply(Sound, Array.prototype.slice.call(arguments, 1));
-    } catch (e) { /* audio must never break the game */ }
-  }
+  var snd = Core.snd, after = Core.after;
   function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
   function lerp(a, b, t) { return a + (b - a) * t; }
   function smooth(p) { p = clamp(p, 0, 1); return p * p * (3 - 2 * p); }
@@ -23,35 +20,27 @@
   function rnd(a, b) { return a + Math.random() * (b - a); }
   function pick(arr) { return arr[(Math.random() * arr.length) | 0]; }
 
-  var reduced = false;
-  try {
-    var mq = window.matchMedia('(prefers-reduced-motion: reduce)');
-    reduced = mq.matches;
-    var onMq = function (e) { reduced = e.matches; };
-    if (mq.addEventListener) mq.addEventListener('change', onMq); else if (mq.addListener) mq.addListener(onMq);
-  } catch (e) { /* ignore */ }
-
   // ------------------------------------------------------------------ state
-  var W = 0, H = 0, DPR = 1, M = 0;       // M = min(W,H)
+  var W = 0, H = 0, DPR = 1, M = 0, reduced = false;      // M = min(W,H)
+  function sync() { W = Core.W; H = Core.H; M = Core.M; DPR = Core.DPR; reduced = Core.reduced; }
+  // held: a finger is down now; hasHeld: held at least once this game (hides the tap hint)
   var st = {
-    mode: 'title', t: 0, mt: 0,             // mt = time in current mode
-    score: 0, best: 0, sinceWash: 0, held: false,
+    mode: 'off', t: 0, mt: 0,               // mt = time in current mode
+    score: 0, best: 0, sinceWash: 0, held: false, hasHeld: false,
     sf: 0.3, scroll: 0,
-    stars: [], clouds: [], mud: null, parts: [], bubbles: [], bonus: [], timers: [],
+    stars: [], clouds: [], mud: null, parts: [], bubbles: [], bonus: [],
     splotches: null, dirtyNeed: false, idle: 0, popT: 0,
     hero: { x: 0, y: 0, h: 100, vy: 0, rot: 0 },
     from: null, toDur: 0.9,
     starT: 0.6, cloudT: 2.0, trailT: 0, noCtl: 0,
-    fx: { glow: 0, wave: 0, hap: 0, hapDur: 1, hapAmp: 0 }, runV: 0, faceV: 0, cyc: 0, mood: 'day', rainbow: null, bigPop: 9, slotPop: [], nBonusDone: 0, fade: 1, sparkT: 0
+    fx: { glow: 0, wave: 0, hap: 0, hapDur: 1, hapAmp: 0 }, runV: 0, faceV: 0, rainbow: null, bigPop: 9, slotPop: [], nBonusDone: 0, fade: 1, sparkT: 0
   };
   var i0;
   for (i0 = 0; i0 < 10; i0++) st.slotPop.push(9);
 
   // 'stella.*' keys are from before the unicorn's name was fixed to Bella: keep reading them.
-  try { st.best = parseInt(localStorage.getItem('bella.best') || localStorage.getItem('stella.best'), 10) || 0; } catch (e) { st.best = 0; }
-  function saveBest() {
-    try { localStorage.setItem('bella.best', String(st.best)); } catch (e) { /* ignore */ }
-  }
+  st.best = parseInt(Core.load('bella.best', ['stella.best']), 10) || 0;
+  function saveBest() { Core.store('bella.best', String(st.best)); }
 
   // ---------------------------------------------------------------- sprites
   var S = {};            // size-dependent sprites
@@ -72,7 +61,7 @@
   function heroAspect() { return HW / HC; }
   function flyX() { return W * (W < H ? 0.3 : 0.26); }
   function baseSpeed() { return Math.max(0.26 * W, 0.18 * H); }
-  function hillH() { return H * 0.26; }
+  function hillH() { return Backdrop.hillH(); }
 
   var bar = null, barKey = '';
   function barMetrics() {
@@ -142,28 +131,9 @@
     var h = Math.min(0.78 * space, 0.86 * W / heroAspect());
     return { x: W / 2, y: bb + space / 2, h: h };
   }
-  // Start page: the name is HTML (#title) at the top, then the hero, the play button, the best score.
-  function titleTarget() {
-    return { x: W / 2, y: H * 0.35, h: Math.min(H * 0.28, W * 0.55) };
-  }
-  function playButton() {
-    return { x: W / 2, y: H * 0.65, r: M * 0.14 };
-  }
 
   // ------------------------------------------------------------- resize/build
-  var deco = [], twinkles = [], flies = [];
   function build() {
-    S.sky = Art.paintSky(W, H, DPR);
-    var hh = hillH();
-    S.hillBack = Art.paintHills(W, hh, DPR, { seed: 1, layer: 'back' });
-    S.hillFront = Art.paintHills(W, hh, DPR, { seed: 2, layer: 'front' });
-    S.skyS = Art.paintSunsetSky ? Art.paintSunsetSky(W, H, DPR) : null;
-    S.skyN = Art.paintNightSky ? Art.paintNightSky(W, H, DPR) : null;
-    var P = Art.PAL || {};
-    S.hills = [
-      [S.hillBack, tintTile(S.hillBack, P.sunsetTint, '#ff9a6a'), tintTile(S.hillBack, P.nightTint, '#3b3a7a')],
-      [S.hillFront, tintTile(S.hillFront, P.sunsetTint, '#ff9a6a'), tintTile(S.hillFront, P.nightTint, '#3b3a7a')]
-    ];
     var hf = heroFlyH();
     S.starR = clamp(M * 0.062, 20, 46);
     S.star = Art.starSprite(S.starR, DPR, { face: true });
@@ -171,67 +141,12 @@
     S.clouds = [1, 2, 3].map(function (s) { return Art.cloudSprite(S.cloudW, DPR, { seed: s * 3 + 1, face: true }); });
     S.mudCloud = Art.cloudSprite(hf * 1.15, DPR, { seed: 5, mud: true, face: true });
     S.bubbles = [M * 0.016, M * 0.026, M * 0.04].map(function (r) { return Art.bubbleSprite(r, DPR); });
-    S.deco = [1, 2, 3, 4].map(function (s) { return Art.cloudSprite(M * (0.34 + s * 0.07), DPR, { seed: s * 11, face: false }); });
     S.spark = [makeSparkle('#fffbe0', '#ffe581'), makeSparkle('#ffffff', '#ffb8d6'), makeSparkle('#fffbff', '#d3bdf2')];
     barMetrics();
     S.ppuFly = heroFlyH() / HC * DPR;
     S.ppuWash = washTarget().h / HC * DPR;
     CHR.prerender(S.ppuFly);
     CHR.prerender(S.ppuWash);
-    if (!deco.length) {
-      for (var i = 0; i < 40; i++) twinkles.push({ x: Math.random(), y: 0.02 + Math.random() * 0.5, r: 0.008 + Math.random() * 0.012, sp: rnd(0.4, 1.4), ph: rnd(0, TAU) });
-      for (i = 0; i < 6; i++) flies.push({ x: Math.random(), y: 0.6 + Math.random() * 0.2, sp: rnd(0.2, 0.4), ph: rnd(0, TAU), ph2: rnd(0, TAU) });
-      for (i = 0; i < 5; i++) deco.push({ x: Math.random(), y: 0.08 + Math.random() * 0.45, k: i % 4, sp: 0.01 + Math.random() * 0.02, a: 0.18 + Math.random() * 0.14 });
-    }
-  }
-
-  function tintTile(src, color, fallback) {
-    var c = document.createElement('canvas');
-    c.width = src.width; c.height = src.height;
-    var g = c.getContext('2d');
-    g.drawImage(src, 0, 0);
-    g.globalCompositeOperation = 'source-atop';
-    g.fillStyle = color || fallback;
-    if (!color || /^#/.test(color)) g.globalAlpha = 0.55;
-    g.fillRect(0, 0, c.width, c.height);
-    return c;
-  }
-
-  // day/night cycle: day 75 s, sunset 12, night 50, sunrise 12
-  var CYC = { day: 75, sun: 12, night: 50, rise: 12 };
-  var CYC_LEN = CYC.day + CYC.sun + CYC.night + CYC.rise;
-  var sky = { s: 0, n: 0, d: 1 };   // weights: sunset, night, day
-  function sunsetAmts(p) {          // p 0..1 through the sunset: day -> sunset -> night
-    if (p < 0.5) { sky.s = smooth(p * 2); sky.n = 0; }
-    else { sky.n = smooth(p * 2 - 1); sky.s = 1 - sky.n; }
-    sky.d = 1 - sky.s - sky.n;
-  }
-  function skyWeights() {
-    var t = st.cyc % CYC_LEN;
-    if (t < CYC.day) { sky.s = 0; sky.n = 0; sky.d = 1; }
-    else if (t < CYC.day + CYC.sun) sunsetAmts((t - CYC.day) / CYC.sun);
-    else if (t < CYC.day + CYC.sun + CYC.night) { sky.s = 0; sky.n = 1; sky.d = 0; }
-    else sunsetAmts(1 - (t - CYC.day - CYC.sun - CYC.night) / CYC.rise);
-    if (!S.skyS) { sky.d += sky.s; sky.s = 0; }
-    if (!S.skyN) { sky.d += sky.n; sky.n = 0; }
-  }
-  function updateMood() {
-    var t = st.cyc % CYC_LEN, night = t >= CYC.day + CYC.sun * 0.5 && t < CYC.day + CYC.sun + CYC.night;
-    var m = night ? 'night' : 'day';
-    if (m !== st.mood) { st.mood = m; snd('setMood', m); }
-  }
-  // draw variants (day, sunset, night) crossfaded using at most two draws
-  function crossDraw(g, v, x, y, w, h) {
-    var ws = [sky.d, sky.s, sky.n], first = -1, i;
-    for (i = 0; i < 3; i++) {
-      if (ws[i] <= 0.001 || !v[i]) continue;
-      if (first < 0) { first = i; g.drawImage(v[i], x, y, w, h); }
-      else {
-        g.globalAlpha = ws[i] / (ws[first] + ws[i]);
-        g.drawImage(v[i], x, y, w, h);
-        g.globalAlpha = 1;
-      }
-    }
   }
 
   function makeSparkle(core, glow) {
@@ -255,26 +170,10 @@
     return spr;
   }
 
-  var resizeTimer = 0;
-  function applySize() {
-    DPR = Math.min(window.devicePixelRatio || 1, 2);
-    W = window.innerWidth; H = window.innerHeight; M = Math.min(W, H);
-    cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
-    cv.style.width = W + 'px'; cv.style.height = H + 'px';
-  }
-  function onResize() {
-    applySize();
-    clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(function () {
-      build();
-      refit();
-    }, 150);
-  }
   // re-place the hero after resize according to the mode
   function refit() {
     var h = st.hero, t;
-    if (st.mode === 'title') t = titleTarget();
-    else if (st.mode === 'wash' || st.mode === 'clean') t = washTarget();
+    if (st.mode === 'wash' || st.mode === 'clean') t = washTarget();
     else if (st.mode === 'fly') {
       h.h = heroFlyH(); h.x = flyX();
       var l = heroLimits(); h.y = clamp(h.y, l.top, l.bottom);
@@ -310,9 +209,6 @@
     if (t > 0.5) return 1;
     return 1 + (big ? 0.7 : 0.55) * Math.sin(Math.PI * t / 0.5);
   }
-
-  // ------------------------------------------------------------------ timers
-  function after(delay, fn) { st.timers.push({ t: delay, fn: fn }); }
 
   // -------------------------------------------------------------- particles
   function addPart(p) {
@@ -434,45 +330,25 @@
   // -------------------------------------------------------------- mode changes
   function setMode(m) {
     st.mode = m; st.mt = 0;
-    document.body.classList.toggle('playing', m !== 'title');
   }
 
-  // Back to the start page. The best score is already saved on every point.
-  function goHome() {
-    if (st.mode === 'title') return;
-    st.timers.length = 0;
+  // Leaving the game (home, full screen closed). The core has already cleared
+  // the timers. The best score is already saved on every point.
+  function stopGame() {
     st.stars.length = 0; st.clouds.length = 0; st.bonus.length = 0; st.bubbles.length = 0;
     st.mud = null; st.splotches = null; st.dirtyNeed = false; st.rainbow = null;
     st.held = false; st.fade = 1; st.popT = 0;
     st.hero.vy = 0; st.hero.rot = 0;
     pointers.clear();
-    setMode('title');
-    refit();
+    setMode('off');
   }
 
-  // Full screen starts with the play tap (browsers allow it only after a tap).
-  // iPhone Safari has no full screen for pages: there, "Add to Home Screen" gives it.
-  var fsUsed = false;
-  function fsElement() { return document.fullscreenElement || document.webkitFullscreenElement || null; }
-  function goFullscreen() {
-    var el = document.documentElement;
-    var req = el.requestFullscreen || el.webkitRequestFullscreen;
-    if (!req || fsElement()) return;
-    try {
-      var r = req.call(el, { navigationUI: 'hide' });
-      fsUsed = true;
-      if (r && r.catch) r.catch(function () { fsUsed = false; });
-    } catch (e) { fsUsed = false; }
-  }
-  function onFsChange() {
-    // Leaving full screen (back button, Esc) goes back to the start page.
-    if (!fsElement() && fsUsed) { fsUsed = false; goHome(); }
-  }
-  document.addEventListener('fullscreenchange', onFsChange);
-  document.addEventListener('webkitfullscreenchange', onFsChange);
-
-  function startGame() {
-    st.score = 0; st.sinceWash = 0; st.held = false;
+  // from: where the hero is on the page we come from ({x, y, h})
+  function startGame(from) {
+    var h = st.hero;
+    if (from) { h.x = from.x; h.y = from.y; h.h = from.h; }
+    st.sf = sfTarget.title;
+    st.score = 0; st.sinceWash = 0; st.held = false; st.hasHeld = false;
     st.stars.length = 0; st.clouds.length = 0; st.mud = null;
     for (var i = 0; i < 10; i++) st.slotPop[i] = 9;
     st.bigPop = 9;
@@ -580,6 +456,7 @@
   }
 
   // --------------------------------------------------------------------- update
+  // title: the start page's drift speed, where a new game starts from
   var sfTarget = { title: 0.3, fly: 1, toWash: 0, wash: 0, clean: 0, toFly: 1 };
 
   function spawnStar() {
@@ -603,9 +480,7 @@
 
   function holding() {
     if (st.noCtl > 0) return false;
-    var any = false;
-    pointers.forEach(function (p) { if (!p.sup) any = true; });
-    return any;
+    return pointers.size > 0;
   }
 
   function updatePose(dt) {
@@ -638,8 +513,8 @@
 
   function updateFly(dt) {
     var h = st.hero, l = heroLimits(), spd = baseSpeed();
-    var hold = holding();
-    if (hold) st.held = true;
+    var hold = st.held;
+    if (hold) st.hasHeld = true;
     st.noCtl = Math.max(0, st.noCtl - dt);
     if (hold) h.vy -= 2.9 * H * dt; else h.vy += 0.85 * H * dt;
     h.vy = clamp(h.vy, -0.5 * H, 0.3 * H);
@@ -723,23 +598,15 @@
     st.sf += (sfTarget[mode] - st.sf) * Math.min(1, dt * 3);
     if (Math.abs(sfTarget[mode] - st.sf) < 0.003) st.sf = sfTarget[mode];
     st.scroll += spd * st.sf * dt;
-    if (mode !== 'title') st.cyc += dt;
-    updateMood();
+    st.held = holding();
 
-    for (var i = st.timers.length - 1; i >= 0; i--) {
-      var tm = st.timers[i];
-      tm.t -= dt;
-      if (tm.t <= 0) { st.timers.splice(i, 1); tm.fn(); }
-    }
+    var i;
     if (st.rainbow) { st.rainbow.t += dt; if (st.rainbow.t > 5.2) st.rainbow = null; }
     for (i = 0; i < 10; i++) if (st.slotPop[i] < 9) st.slotPop[i] += dt;
     if (st.bigPop < 9) st.bigPop += dt;
 
     updatePose(dt);
-    if (mode === 'title') {
-      var t = titleTarget();
-      h.x = t.x; h.y = t.y; h.h = t.h; h.rot = 0;
-    } else if (mode === 'fly') {
+    if (mode === 'fly') {
       updateFly(dt);
     } else if (mode === 'toWash') {
       st.popT = Math.min(1, st.popT + dt / 0.6);
@@ -805,7 +672,7 @@
   function drawHero(g) {
     var h = st.hero, w = h.h * heroAspect();
     var bob = 0;
-    if (!reduced && (st.mode === 'fly' || st.mode === 'title' || st.mode === 'toFly')) bob = Math.sin(st.t * 2.4) * M * 0.006;
+    if (!reduced && (st.mode === 'fly' || st.mode === 'toFly')) bob = Math.sin(st.t * 2.4) * M * 0.006;
     var pu = nearPpu(h);
     var dirty = st.splotches && (st.mode === 'toWash' || st.mode === 'wash' || st.mode === 'clean');
     if (dirty) renderDirty(pu);
@@ -827,36 +694,8 @@
     g.restore();
   }
 
-  function drawNightSky(g, nn) {
-    var i, b = layoutBar();
-    if (Art.drawTwinkle) {
-      for (i = 0; i < twinkles.length; i++) {
-        var q = twinkles[i];
-        Art.drawTwinkle(g, q.x * W, q.y * H, q.r * M, nn * (reduced ? 0.8 : 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(st.t * q.sp + q.ph))));
-      }
-    }
-    if (Art.drawMoon) {
-      var r = M * 0.09, mx = Math.min(W * 0.55, W - 68 - 24 - r * 1.5);
-      var topY = b.bottom + r * 1.5 + M * 0.03;
-      var my = lerp(H * 0.55, topY, smooth(nn));
-      g.globalAlpha = nn;
-      Art.drawMoon(g, mx, my, r, st.t);
-      g.globalAlpha = 1;
-    }
-  }
-
-  function drawBackground(g) {
-    skyWeights();
-    crossDraw(g, [S.sky, S.skyS, S.skyN], 0, 0, W, H);
-    var i, d, nn = sky.n;
-    if (nn > 0.01) drawNightSky(g, nn);
-    var dim = 1 - 0.6 * nn - 0.2 * sky.s;
-    for (i = 0; i < deco.length; i++) {
-      d = deco[i];
-      var spr = S.deco[d.k], span = W + spr.lw;
-      var x = ((d.x * span - st.t * d.sp * W - st.scroll * 0.06) % span + span) % span - spr.lw / 2;
-      drawSpr(g, spr, x, d.y * H, 1, 1, d.a * dim, 0);
-    }
+  // drawn by the backdrop between its far clouds and the hills
+  function drawRainbow(g) {
     if (st.rainbow) {
       var rb = st.rainbow, a, sweep;
       sweep = reduced ? 1 : smooth(rb.t / 1.1);
@@ -864,19 +703,8 @@
       var rad = Math.min(W * 0.46, H * 0.55);
       Art.drawRainbow(g, W / 2, H * 0.82, rad, rad * 0.1, a, sweep);
     }
-    var hh = hillH(), y = H - hh;
-    var x1 = -((st.scroll * 0.25) % W), x2 = -((st.scroll * 0.5) % W);
-    x1 = Math.round(x1 * DPR) / DPR; x2 = Math.round(x2 * DPR) / DPR;
-    crossDraw(g, S.hills[0], x1, y, W, hh); crossDraw(g, S.hills[0], x1 + W, y, W, hh);
-    crossDraw(g, S.hills[1], x2, y, W, hh); crossDraw(g, S.hills[1], x2 + W, y, W, hh);
-    if (nn > 0.01 && Art.drawFirefly) {
-      for (i = 0; i < flies.length; i++) {
-        var f = flies[i], fx = f.x * W, fy = f.y * H;
-        if (!reduced) { fx += Math.sin(st.t * f.sp + f.ph) * M * 0.06; fy += Math.sin(st.t * f.sp * 1.3 + f.ph2) * M * 0.03; }
-        Art.drawFirefly(g, fx, fy, M * 0.012, nn * (reduced ? 0.8 : 0.6 + 0.4 * Math.sin(st.t * 2 + f.ph)));
-      }
-    }
   }
+  var backdropOpts = { top: 0, behind: drawRainbow };
 
   function drawBar(g) {
     var b = layoutBar(), i;
@@ -898,33 +726,6 @@
     }
   }
 
-  function drawTitleUI(g) {
-    var pb = playButton(), r = pb.r, cx = pb.x, cy = pb.y;
-    Art.drawPlayButton(g, cx, cy, r, st.t);
-    if (st.best > 0) {
-      var big = Math.floor(st.best / 10), small = st.best % 10;
-      var medR = M * 0.05, y = cy + r + M * 0.1 + medR;
-      var bigR = M * 0.032, smR = M * 0.019;
-      var items = big + small;
-      var step = Math.min(bigR * 2.3, (W * 0.8 - medR * 3) / Math.max(items, 1));
-      var total = medR * 2 + M * 0.025 + (big ? big * step : 0) + small * Math.min(step, smR * 2.4);
-      var x = cx - total / 2;
-      Art.drawMedal(g, x + medR, y, medR);
-      x += medR * 2 + M * 0.025;
-      var i;
-      for (i = 0; i < big; i++) {
-        var scb = bigR / S.starR;
-        drawSpr(g, S.star, x + step / 2, y, scb, scb, 1, 0);
-        x += step;
-      }
-      for (i = 0; i < small; i++) {
-        var scs = smR / S.starR, ss = Math.min(step, smR * 2.4);
-        drawSpr(g, S.star, x + ss / 2, y, scs, scs, 1, 0);
-        x += ss;
-      }
-    }
-  }
-
   function dirtiest() {
     var best = null;
     for (var i = 0; i < st.splotches.length; i++) {
@@ -935,8 +736,8 @@
   }
 
   function render(g) {
-    g.setTransform(DPR, 0, 0, DPR, 0, 0);
-    drawBackground(g);
+    backdropOpts.top = layoutBar().bottom;   // the moon rises to just below the score bar
+    Backdrop.draw(g, st.scroll, backdropOpts);
     var i, s, mode = st.mode, fade = st.fade;
     var pulse = reduced ? 0 : 1;
     for (i = 0; i < st.stars.length; i++) {
@@ -955,7 +756,7 @@
 
     drawHero(g);
 
-    if (mode === 'fly' && !st.held) {
+    if (mode === 'fly' && !st.hasHeld) {
       var h = st.hero;
       Art.drawTapHint(g, h.x + h.h * 1.0, h.y - h.h * 0.05, M * 0.09, st.t);
     }
@@ -979,125 +780,62 @@
       if (!reduced && Math.random() < 0.5) addPart({ k: 's', x: bx, y: by2, vx: 0, vy: 0, life: 0, max: 0.5, s: 0.3, spr: 0, rot: 0, g: 0 });
     }
     drawParts(g);
-    if (mode !== 'title') drawBar(g);
-    else drawTitleUI(g);
+    drawBar(g);
     // confetti drawn above everything already via parts
   }
 
   // ------------------------------------------------------------------- input
+  // The core captures and tracks pointers; this map keeps the ones that went
+  // down in this scene (a finger still down from the start page never counts).
   var pointers = new Map();
 
-  cv.addEventListener('pointerdown', function (e) {
-    e.preventDefault();
-    snd('init');
-    try { cv.setPointerCapture(e.pointerId); } catch (er) { /* ignore */ }
-    var p = { x: e.clientX, y: e.clientY, acc: 0, sup: false };
-    if (st.mode === 'title') {
-      // Only the play button starts the game; generous target for small fingers.
-      var pb = playButton();
-      if (Math.hypot(p.x - pb.x, p.y - pb.y) > pb.r * 1.35) return;
-      p.sup = true;
-      goFullscreen();
-      startGame();
-    }
-    pointers.set(e.pointerId, p);
-    if (st.mode === 'wash') {
-      rubAt(p.x, p.y, 0.6 * 0.075 * M);
-      addBubble(p.x, p.y); snd('bubble');
-    }
-  });
-  cv.addEventListener('pointermove', function (e) {
-    var p = pointers.get(e.pointerId);
-    if (!p) return;
-    var dx = e.clientX - p.x, dy = e.clientY - p.y, dist = Math.hypot(dx, dy), ox = p.x, oy = p.y;
-    p.x = e.clientX; p.y = e.clientY;
-    if (st.mode === 'wash' && dist > 0) {
-      rubAt(p.x, p.y, dist, ox, oy);
-      p.acc += dist;
-      var n = 0;
-      while (p.acc > 12 && n < 3) { p.acc -= 12; n++; addBubble(p.x, p.y); }
-      if (n) snd('bubble');
-    }
-  });
-  function up(e) {
-    pointers.delete(e.pointerId);
-    snd('init');
-  }
-  cv.addEventListener('pointerup', up);
-  cv.addEventListener('pointercancel', up);
-  cv.addEventListener('lostpointercapture', function (e) { pointers.delete(e.pointerId); });
-  cv.addEventListener('contextmenu', function (e) { e.preventDefault(); });
-  window.addEventListener('blur', function () { pointers.clear(); });
-  window.addEventListener('resize', onResize);
-  window.addEventListener('orientationchange', onResize);
-
-  muteBtn.setAttribute('aria-pressed', String(!!safeMuted()));
-  function safeMuted() { try { return Sound.isMuted(); } catch (e) { return false; } }
-  muteBtn.addEventListener('click', function () {
-    snd('init');
-    var m = snd('toggleMute');
-    muteBtn.setAttribute('aria-pressed', String(m === undefined ? safeMuted() : !!m));
-  });
-
-  homeBtn.addEventListener('click', function () {
-    if (fsElement()) {
-      fsUsed = true;   // onFsChange goes home once full screen has closed
-      var ex = document.exitFullscreen || document.webkitExitFullscreen;
-      try { var r = ex.call(document); if (r && r.catch) r.catch(goHome); } catch (e) { goHome(); }
-    } else goHome();
-  });
-
-  // Offline play and "Add to Home Screen": cache the game files (only over http/https).
-  if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
-    window.addEventListener('load', function () {
-      navigator.serviceWorker.register('sw.js').catch(function () { /* online play still works */ });
-    });
-  }
-
-  var paused = false, last = 0;
-  document.addEventListener('visibilitychange', function () {
-    if (document.hidden) { snd('suspend'); paused = true; pointers.clear(); }
-    else { snd('resume'); paused = false; last = 0; }
-  });
-
-  // ---------------------------------------------------------------------- loop
-  function frame(ts) {
-    requestAnimationFrame(frame);
-    if (paused) return;
-    var dt = last ? Math.min(0.05, (ts - last) / 1000) : 1 / 60;
-    last = ts;
-    try {
-      update(dt);
-      render(ctx);
-    } catch (err) {
-      if (window.console) console.error(err);
+  function pointer(type, e) {
+    var p;
+    if (type === 'down') {
+      p = { x: e.x, y: e.y, acc: 0 };
+      pointers.set(e.id, p);
+      if (st.mode === 'wash') {
+        rubAt(p.x, p.y, 0.6 * 0.075 * M);
+        addBubble(p.x, p.y); snd('bubble');
+      }
+    } else if (type === 'move') {
+      p = pointers.get(e.id);
+      if (!p) return;
+      var dx = e.x - p.x, dy = e.y - p.y, dist = Math.hypot(dx, dy), ox = p.x, oy = p.y;
+      p.x = e.x; p.y = e.y;
+      if (st.mode === 'wash' && dist > 0) {
+        rubAt(p.x, p.y, dist, ox, oy);
+        p.acc += dist;
+        var n = 0;
+        while (p.acc > 12 && n < 3) { p.acc -= 12; n++; addBubble(p.x, p.y); }
+        if (n) snd('bubble');
+      }
+    } else if (type === 'up') {
+      pointers.delete(e.id);
     }
   }
 
-  // ------------------------------------------------------------------- boot
-  applySize();
-  build();
-  refit();
-  (function () { var t = titleTarget(); st.hero.x = t.x; st.hero.y = t.y; st.hero.h = t.h; })();
-  requestAnimationFrame(frame);
+  // ------------------------------------------------------------------ scene
+  Core.register('stars', {
+    home: 'title',
+    clock: true,
+    enter: function (args) { sync(); startGame(args && args.hero); },
+    exit: function () { stopGame(); },
+    update: function (dt) { sync(); update(dt); },
+    render: function (g) { sync(); render(g); },
+    pointer: function (type, p) { sync(); pointer(type, p); },
+    resize: function () { sync(); build(); refit(); }
+  });
 
-  window.__bella = {
+  if (window.__bella === undefined) window.__bella = {};
+  window.__bella.stars = {
     st: st, pose: pose,
     addPoints: function (n) { addPoints(n); },
-    goHome: goHome,
     getDirty: function () { return st.splotches ? st.splotches.map(function (s) { return s.amount; }) : []; },
-    setTime: function (ph) {
-      var o = { day: 10, sunset: CYC.day + CYC.sun / 2, night: CYC.day + CYC.sun + CYC.night / 2, sunrise: CYC.day + CYC.sun + CYC.night + CYC.rise / 2 };
-      if (o[ph] !== undefined) st.cyc = o[ph];
-    },
     cleanAll: function () {
       if (!st.splotches) return;
       st.splotches.forEach(function (s) { s.amount = 0; });
       st.dirtyNeed = true;
     }
   };
-
-  // Temporary adapter (scene split, step 1): the shape the headless tests use.
-  window.__bella.scene = function () { return st.mode === 'title' ? 'title' : 'stars'; };
-  window.__bella.stars = { st: st, addPoints: window.__bella.addPoints, cleanAll: window.__bella.cleanAll };
 })();

@@ -77,7 +77,7 @@ each('milestone at 10 shows rainbow', async ({ page }) => {
 each('home returns to start, play again works', async ({ page }) => {
   await play({ page });
   await page.click('#home');
-  await hold(page, 500);
+  await hold(page, 1000);   // the scene fade (0.4 s out + 0.4 s in) ignores taps
   assert.strictEqual(await scene(page), 'title');
   const vis = await ev(page, () => { const s = getComputedStyle(document.getElementById('home')); return s.display !== 'none' && s.visibility !== 'hidden' && +s.opacity > 0; });
   assert.strictEqual(vis, false, '#home hidden');
@@ -115,3 +115,120 @@ test('offline reload works', async () => {
     assert.deepStrictEqual(g.errors, []);
   } finally { await g.ctx.close(); }
 });
+
+// ---------------------------------------------------------------- scene split
+// Review focus 1-4 of the fairy town plan: resize, multi-touch, fades.
+
+const PORTRAIT = { width: 390, height: 844, deviceScaleFactor: 2, hasTouch: true, isMobile: true };
+const LANDSCAPE = { width: 844, height: 390, deviceScaleFactor: 2, hasTouch: true, isMobile: true };
+
+async function single(fn) {
+  const g = await openGame(browser, { w: 390, h: 844, url: server.url });
+  try { await fn(g); assert.deepStrictEqual(g.errors, []); }
+  finally { await g.ctx.close(); }
+}
+
+const heroY = (page) => ev(page, () => ({ y: window.__bella.stars.st.hero.y, h: innerHeight }));
+
+test('resize mid-game and mid-fade keeps hero on screen', () => single(async (g) => {
+  const { page } = g;
+  await play(g);
+  await waitFor(page, () => window.__bella.stars.st.mode === 'fly');
+  await page.setViewport(LANDSCAPE);
+  await hold(page, 400);
+  let r = await heroY(page);
+  assert.ok(r.y >= 0 && r.y <= r.h, 'after turning: y ' + r.y + ' in [0, ' + r.h + ']');
+  await page.click('#home');
+  await page.setViewport(PORTRAIT);
+  await hold(page, 1000);
+  r = await heroY(page);
+  assert.ok(r.y >= 0 && r.y <= r.h, 'after home: y ' + r.y + ' in [0, ' + r.h + ']');
+  assert.strictEqual(await scene(page), 'title');
+}));
+
+test('two pointers released in any order clear hold', () => single(async (g) => {
+  const { page } = g;
+  const cdp = await page.createCDPSession();
+  const touch = (type, pts) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: pts });
+  await play(g);
+  await waitFor(page, () => window.__bella.stars.st.mode === 'fly');
+  const a = { x: 150, y: 500, id: 1 }, b = { x: 250, y: 600, id: 2 };
+  for (const [first, second] of [[a, b], [b, a]]) {
+    await touch('touchStart', [a, b]);
+    await hold(page, 500);
+    assert.strictEqual(await ev(page, () => window.__bella.stars.st.held), true, 'held with two fingers');
+    await touch('touchMove', [second]);          // lifts `first`, `second` stays down
+    await hold(page, 150);
+    assert.strictEqual(await ev(page, () => window.__bella.stars.st.held), true, 'still held by finger ' + second.id);
+    await touch('touchEnd', []);                 // lifts `second`
+    await hold(page, 50);
+    assert.strictEqual(await ev(page, () => window.__bella.stars.st.held), false, 'released ' + first.id + ' then ' + second.id);
+    // Momentum keeps the hero rising briefly, so compare with the apex.
+    let apex = (await heroY(page)).y;
+    for (let i = 0; i < 9; i++) { await hold(page, 100); apex = Math.min(apex, (await heroY(page)).y); }
+    const end = (await heroY(page)).y;
+    assert.ok(end > apex, 'floats down from apex ' + apex + ' -> ' + end);
+  }
+}));
+
+test('double tap during fade enters scene once', async () => {
+  const g = await openGame(browser, { w: 390, h: 844, url: server.url });
+  try {
+    const { page } = g;
+    // Count stars.enter() calls by wrapping Core.register before the scenes load.
+    await page.evaluateOnNewDocument(() => {
+      window.__enters = 0;
+      let core;
+      Object.defineProperty(window, 'Core', {
+        configurable: true,
+        get() { return core; },
+        set(v) {
+          const reg = v.register;
+          v.register = function (name, sc) {
+            if (name === 'stars') {
+              const en = sc.enter;
+              sc.enter = function () { window.__enters++; return en.apply(this, arguments); };
+            }
+            return reg.apply(this, arguments);
+          };
+          core = v;
+        }
+      });
+    });
+    await page.reload({ waitUntil: 'load' });
+    await page.waitForFunction(() => window.__bella && window.__bella.scene, { timeout: 3000 });
+    await tapPlay(page);
+    await hold(page, 100);
+    await tapPlay(page);
+    await hold(page, 1500);
+    assert.strictEqual(await ev(page, () => window.__enters), 1);
+    assert.strictEqual(await scene(page), 'stars');
+    await page.click('#home');
+    await hold(page, 100);
+    await page.click('#home');
+    await hold(page, 1500);
+    assert.strictEqual(await scene(page), 'title');
+    assert.strictEqual(await ev(page, () => window.__enters), 1);
+    assert.deepStrictEqual(g.errors, []);
+  } finally { await g.ctx.close(); }
+});
+
+test('hidden during fade resumes cleanly', () => single(async (g) => {
+  const { page } = g;
+  await play(g);
+  await ev(page, () => {
+    window.__resumes = 0;
+    const r = window.Sound.resume;
+    window.Sound.resume = function () { window.__resumes++; return r.apply(this, arguments); };
+  });
+  const setHidden = (h) => ev(page, (hh) => {
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => hh });
+    document.dispatchEvent(new Event('visibilitychange'));
+  }, h);
+  await page.click('#home');
+  await setHidden(true);
+  await hold(page, 300);
+  await setHidden(false);
+  await waitFor(page, () => window.__bella.scene() === 'title', 2000);
+  assert.strictEqual(await ev(page, () => window.__resumes), 1, 'audio resumed');
+}));
