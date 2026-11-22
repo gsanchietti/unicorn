@@ -22,6 +22,7 @@
     yellow: '#ffe581', yellowDeep: '#f6c545',
     white: '#fffbff',
     mud: '#a97f55', mudDark: '#76523a',
+    nightTint: '#8a86d6', sunsetTint: '#ffc9a8',
     confetti: ['#ff9ec4', '#ffe581', '#a9dcf7', '#cdb4f2', '#ffc3dc', '#c4efd6'],
     // outer band first
     rainbow: ['#ff9fc2', '#ffbf9d', '#ffe58a', '#b9e8bd', '#a4d6f5', '#c9aff0']
@@ -732,12 +733,154 @@
     g.restore();
   }
 
+  // ------------------------------------------------- night / sunset skies
+  // Shared recipe: vertical gradient + blooms + brush strokes.
+  function paintGradientSky(w, h, dpr, seed, stops, bloomCols, bloomAlpha, strokeA) {
+    var s = newSprite(w, h, dpr), g = s.g, rand = rng(seed), i;
+    var gr = g.createLinearGradient(0, 0, 0, h);
+    for (i = 0; i < stops.length; i++) gr.addColorStop(stops[i][0], stops[i][1]);
+    g.fillStyle = gr;
+    g.fillRect(0, 0, w, h);
+    var m = Math.min(w, h);
+    for (i = 0; i < 18; i++) {
+      bloom(g, rand() * w, rand() * h, m * (0.14 + rand() * 0.22), bloomCols[i % bloomCols.length],
+        bloomAlpha * (0.7 + rand() * 0.6), rand);
+    }
+    g.lineCap = 'round';
+    for (i = 0; i < 9; i++) {
+      var y0 = rand() * h * 0.8, x0 = rand() * w * 0.6 - w * 0.1, len = w * (0.3 + rand() * 0.4);
+      g.beginPath();
+      g.moveTo(x0, y0);
+      g.bezierCurveTo(x0 + len * 0.3, y0 - h * 0.04, x0 + len * 0.6, y0 + h * 0.05, x0 + len, y0 - h * 0.01);
+      g.lineWidth = h * (0.025 + rand() * 0.04);
+      g.strokeStyle = 'rgba(255,255,255,' + (strokeA * (0.7 + rand() * 0.6)) + ')';
+      g.stroke();
+    }
+    return s;
+  }
+
+  function paintNightSky(w, h, dpr) {
+    var s = paintGradientSky(w, h, dpr, 23, [
+      [0, '#8d95dc'], [0.5, '#a58fd6'], [0.85, '#d9a2cf'], [1, '#f0b6cf']
+    ], [PAL.lilacDeep, '#8f9be0', PAL.lilac, PAL.pink], 0.2, 0.06);
+    var g = s.g, rand = rng(77), n = Math.round(w * h / 9000);
+    // faint painted dots of far-away stars
+    for (var i = 0; i < n; i++) {
+      var y = rand() * h * 0.85;
+      dot(g, rand() * w, y, 0.8 + rand() * 1.6, 'rgba(255,250,235,' + (0.25 + rand() * 0.4) + ')');
+    }
+    return s.c;
+  }
+
+  function paintSunsetSky(w, h, dpr) {
+    var s = paintGradientSky(w, h, dpr, 41, [
+      [0, '#c5b4ee'], [0.35, '#eeb6d8'], [0.7, '#ffc9b0'], [1, '#ffe0b8']
+    ], [PAL.pink, '#ffc9a8', PAL.lilac, PAL.yellow], 0.24, 0.1);
+    var g = s.g, m = Math.min(w, h), sx = w * 0.3, sy = h * 0.72;
+    var sg = g.createRadialGradient(sx, sy, 0, sx, sy, m * 0.55);
+    sg.addColorStop(0, 'rgba(255,236,170,0.85)');
+    sg.addColorStop(0.3, 'rgba(255,205,170,0.45)');
+    sg.addColorStop(1, 'rgba(255,200,180,0)');
+    g.fillStyle = sg;
+    g.fillRect(0, 0, w, h);
+    return s.c;
+  }
+
+  // ------------------------------------------------ moon, twinkle, firefly
+  var moonCache = {}, glowCache = {};
+
+  // Cached soft radial glow sprite (white-ish tint given as rgb string).
+  function glowSprite(radius, rgb) {
+    var key = Math.round(radius) + rgb;
+    if (glowCache[key]) return glowCache[key];
+    var size = Math.max(4, Math.ceil(radius * 2)), c = makeCanvas(size, size), g = c.getContext('2d');
+    var gr = g.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+    gr.addColorStop(0, 'rgba(' + rgb + ',0.9)');
+    gr.addColorStop(0.3, 'rgba(' + rgb + ',0.35)');
+    gr.addColorStop(1, 'rgba(' + rgb + ',0)');
+    g.fillStyle = gr;
+    g.fillRect(0, 0, size, size);
+    c.lw = size; c.lh = size;
+    return (glowCache[key] = c);
+  }
+
+  // Moon: full soft disc with a gentle crescent shading, sleepy face. Cached
+  // per radius (at the device pixel ratio of the first call's context scale).
+  function moonSprite(r) {
+    var key = Math.round(r);
+    if (moonCache[key]) return moonCache[key];
+    var dpr = Math.min(3, window.devicePixelRatio || 1);
+    var size = r * 5, s = newSprite(size, size, dpr), g = s.g, c = size / 2;
+    var gl = g.createRadialGradient(c, c, r * 0.8, c, c, size / 2);
+    gl.addColorStop(0, 'rgba(255,240,170,0.6)');
+    gl.addColorStop(0.4, 'rgba(255,235,170,0.22)');
+    gl.addColorStop(1, 'rgba(255,235,190,0)');
+    g.fillStyle = gl; g.fillRect(0, 0, size, size);
+    var bg = g.createRadialGradient(c - r * 0.3, c - r * 0.3, r * 0.1, c, c, r);
+    bg.addColorStop(0, '#fff8cf'); bg.addColorStop(1, '#ffe27f');
+    dot(g, c, c, r, bg);
+    g.lineWidth = r * 0.05; g.strokeStyle = 'rgba(246,197,69,0.6)';
+    g.beginPath(); g.arc(c, c, r - r * 0.025, 0, TAU); g.stroke();
+    // soft craters
+    dot(g, c + r * 0.4, c - r * 0.35, r * 0.13, 'rgba(246,197,69,0.25)');
+    dot(g, c + r * 0.5, c + r * 0.25, r * 0.09, 'rgba(246,197,69,0.25)');
+    dot(g, c - r * 0.45, c + r * 0.4, r * 0.1, 'rgba(246,197,69,0.2)');
+    // sleepy closed eyes, small smile, pink cheeks
+    var ink = '#7a5a8e';
+    g.lineCap = 'round'; g.lineWidth = r * 0.055; g.strokeStyle = ink;
+    for (var k = -1; k <= 1; k += 2) {
+      g.beginPath(); g.arc(c + k * r * 0.3, c - r * 0.05, r * 0.1, 0.15 * Math.PI, 0.85 * Math.PI); g.stroke();
+      dot(g, c + k * r * 0.5, c + r * 0.2, r * 0.12, rgba(PAL.pinkDeep, 0.5));
+    }
+    g.beginPath(); g.arc(c, c + r * 0.12, r * 0.13, 0.2 * Math.PI, 0.8 * Math.PI); g.stroke();
+    moonCache[key] = s.c;
+    return s.c;
+  }
+
+  // t = seconds: a very gentle breathing of the glow.
+  function drawMoon(g, x, y, r, t) {
+    var spr = moonSprite(r);
+    var breathe = 1 + 0.03 * Math.sin((t || 0) * 1.2);
+    drawSprite(g, spr, x, y, breathe, 1, 0.04 * Math.sin((t || 0) * 0.6));
+  }
+
+  // Tiny rounded 4-point twinkle + soft glow (cached glow sprite).
+  function drawTwinkle(g, x, y, r, a) {
+    if (a <= 0) return;
+    var prev = g.globalAlpha, gs = glowSprite(r * 4, '255,246,210');
+    g.globalAlpha = prev * a * 0.7;
+    g.drawImage(gs, x - r * 2, y - r * 2, r * 4, r * 4);
+    g.globalAlpha = prev * a;
+    var k = r * 0.28;
+    g.beginPath();
+    g.moveTo(x, y - r);
+    g.quadraticCurveTo(x + k, y - k, x + r, y);
+    g.quadraticCurveTo(x + k, y + k, x, y + r);
+    g.quadraticCurveTo(x - k, y + k, x - r, y);
+    g.quadraticCurveTo(x - k, y - k, x, y - r);
+    g.fillStyle = '#fffbe8';
+    g.fill();
+    g.globalAlpha = prev;
+  }
+
+  function drawFirefly(g, x, y, r, a) {
+    if (a <= 0) return;
+    var prev = g.globalAlpha, gs = glowSprite(r * 6, '255,236,130');
+    g.globalAlpha = prev * a;
+    g.drawImage(gs, x - r * 3, y - r * 3, r * 6, r * 6);
+    g.beginPath(); g.arc(x, y, r * 0.6, 0, TAU);
+    g.fillStyle = '#fff4a8'; g.fill();
+    g.globalAlpha = prev;
+  }
+
   window.Art = {
     PAL: PAL, makeCanvas: makeCanvas, rng: rng, drawSprite: drawSprite,
     starSprite: starSprite, cloudSprite: cloudSprite, bubbleSprite: bubbleSprite,
     paintSky: paintSky, paintHills: paintHills,
     makeSplotch: makeSplotch, drawSplotch: drawSplotch,
     drawRainbow: drawRainbow, drawSponge: drawSponge,
+    paintNightSky: paintNightSky, paintSunsetSky: paintSunsetSky,
+    drawMoon: drawMoon, drawTwinkle: drawTwinkle, drawFirefly: drawFirefly,
     drawPlayButton: drawPlayButton, drawMedal: drawMedal, drawTapHint: drawTapHint
   };
 })();
