@@ -41,7 +41,7 @@
     hero: { x: 0, y: 0, h: 100, vy: 0, rot: 0 },
     from: null, toDur: 0.9,
     starT: 0.6, cloudT: 2.0, trailT: 0, noCtl: 0,
-    rainbow: null, bigPop: 9, slotPop: [], nBonusDone: 0, fade: 1, sparkT: 0
+    cyc: 0, mood: 'day', rainbow: null, bigPop: 9, slotPop: [], nBonusDone: 0, fade: 1, sparkT: 0
   };
   var i0;
   for (i0 = 0; i0 < 10; i0++) st.slotPop.push(9);
@@ -190,12 +190,19 @@
   }
 
   // ------------------------------------------------------------- resize/build
-  var deco = [];
+  var deco = [], twinkles = [], flies = [];
   function build() {
     S.sky = Art.paintSky(W, H, DPR);
     var hh = hillH();
     S.hillBack = Art.paintHills(W, hh, DPR, { seed: 1, layer: 'back' });
     S.hillFront = Art.paintHills(W, hh, DPR, { seed: 2, layer: 'front' });
+    S.skyS = Art.paintSunsetSky ? Art.paintSunsetSky(W, H, DPR) : null;
+    S.skyN = Art.paintNightSky ? Art.paintNightSky(W, H, DPR) : null;
+    var P = Art.PAL || {};
+    S.hills = [
+      [S.hillBack, tintTile(S.hillBack, P.sunsetTint, '#ff9a6a'), tintTile(S.hillBack, P.nightTint, '#3b3a7a')],
+      [S.hillFront, tintTile(S.hillFront, P.sunsetTint, '#ff9a6a'), tintTile(S.hillFront, P.nightTint, '#3b3a7a')]
+    ];
     var hf = heroFlyH();
     S.starR = clamp(M * 0.062, 20, 46);
     S.star = Art.starSprite(S.starR, DPR, { face: true });
@@ -207,7 +214,58 @@
     S.spark = [makeSparkle('#fffbe0', '#ffe581'), makeSparkle('#ffffff', '#ffb8d6'), makeSparkle('#fffbff', '#d3bdf2')];
     barMetrics();
     if (!deco.length) {
-      for (var i = 0; i < 5; i++) deco.push({ x: Math.random(), y: 0.08 + Math.random() * 0.45, k: i % 4, sp: 0.01 + Math.random() * 0.02, a: 0.18 + Math.random() * 0.14 });
+      for (var i = 0; i < 40; i++) twinkles.push({ x: Math.random(), y: 0.02 + Math.random() * 0.5, r: 0.008 + Math.random() * 0.012, sp: rnd(0.4, 1.4), ph: rnd(0, TAU) });
+      for (i = 0; i < 6; i++) flies.push({ x: Math.random(), y: 0.6 + Math.random() * 0.2, sp: rnd(0.2, 0.4), ph: rnd(0, TAU), ph2: rnd(0, TAU) });
+      for (i = 0; i < 5; i++) deco.push({ x: Math.random(), y: 0.08 + Math.random() * 0.45, k: i % 4, sp: 0.01 + Math.random() * 0.02, a: 0.18 + Math.random() * 0.14 });
+    }
+  }
+
+  function tintTile(src, color, fallback) {
+    var c = document.createElement('canvas');
+    c.width = src.width; c.height = src.height;
+    var g = c.getContext('2d');
+    g.drawImage(src, 0, 0);
+    g.globalCompositeOperation = 'source-atop';
+    g.fillStyle = color || fallback;
+    if (!color || /^#/.test(color)) g.globalAlpha = 0.55;
+    g.fillRect(0, 0, c.width, c.height);
+    return c;
+  }
+
+  // day/night cycle: day 75 s, sunset 12, night 50, sunrise 12
+  var CYC = { day: 75, sun: 12, night: 50, rise: 12 };
+  var CYC_LEN = CYC.day + CYC.sun + CYC.night + CYC.rise;
+  var sky = { s: 0, n: 0, d: 1 };   // weights: sunset, night, day
+  function sunsetAmts(p) {          // p 0..1 through the sunset: day -> sunset -> night
+    if (p < 0.5) { sky.s = smooth(p * 2); sky.n = 0; }
+    else { sky.n = smooth(p * 2 - 1); sky.s = 1 - sky.n; }
+    sky.d = 1 - sky.s - sky.n;
+  }
+  function skyWeights() {
+    var t = st.cyc % CYC_LEN;
+    if (t < CYC.day) { sky.s = 0; sky.n = 0; sky.d = 1; }
+    else if (t < CYC.day + CYC.sun) sunsetAmts((t - CYC.day) / CYC.sun);
+    else if (t < CYC.day + CYC.sun + CYC.night) { sky.s = 0; sky.n = 1; sky.d = 0; }
+    else sunsetAmts(1 - (t - CYC.day - CYC.sun - CYC.night) / CYC.rise);
+    if (!S.skyS) { sky.d += sky.s; sky.s = 0; }
+    if (!S.skyN) { sky.d += sky.n; sky.n = 0; }
+  }
+  function updateMood() {
+    var t = st.cyc % CYC_LEN, night = t >= CYC.day + CYC.sun * 0.5 && t < CYC.day + CYC.sun + CYC.night;
+    var m = night ? 'night' : 'day';
+    if (m !== st.mood) { st.mood = m; snd('setMood', m); }
+  }
+  // draw variants (day, sunset, night) crossfaded using at most two draws
+  function crossDraw(g, v, x, y, w, h) {
+    var ws = [sky.d, sky.s, sky.n], first = -1, i;
+    for (i = 0; i < 3; i++) {
+      if (ws[i] <= 0.001 || !v[i]) continue;
+      if (first < 0) { first = i; g.drawImage(v[i], x, y, w, h); }
+      else {
+        g.globalAlpha = ws[i] / (ws[first] + ws[i]);
+        g.drawImage(v[i], x, y, w, h);
+        g.globalAlpha = 1;
+      }
     }
   }
 
@@ -615,6 +673,8 @@
     st.sf += (sfTarget[mode] - st.sf) * Math.min(1, dt * 3);
     if (Math.abs(sfTarget[mode] - st.sf) < 0.003) st.sf = sfTarget[mode];
     st.scroll += spd * st.sf * dt;
+    if (mode !== 'title') st.cyc += dt;
+    updateMood();
 
     for (var i = st.timers.length - 1; i >= 0; i--) {
       var tm = st.timers[i];
@@ -714,14 +774,35 @@
     g.restore();
   }
 
+  function drawNightSky(g, nn) {
+    var i, b = layoutBar();
+    if (Art.drawTwinkle) {
+      for (i = 0; i < twinkles.length; i++) {
+        var q = twinkles[i];
+        Art.drawTwinkle(g, q.x * W, q.y * H, q.r * M, nn * (reduced ? 0.8 : 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(st.t * q.sp + q.ph))));
+      }
+    }
+    if (Art.drawMoon) {
+      var r = M * 0.09, mx = Math.min(W * 0.55, W - 68 - 24 - r * 1.5);
+      var topY = b.bottom + r * 1.5 + M * 0.03;
+      var my = lerp(H * 0.55, topY, smooth(nn));
+      g.globalAlpha = nn;
+      Art.drawMoon(g, mx, my, r, st.t);
+      g.globalAlpha = 1;
+    }
+  }
+
   function drawBackground(g) {
-    g.drawImage(S.sky, 0, 0, W, H);
-    var i, d;
+    skyWeights();
+    crossDraw(g, [S.sky, S.skyS, S.skyN], 0, 0, W, H);
+    var i, d, nn = sky.n;
+    if (nn > 0.01) drawNightSky(g, nn);
+    var dim = 1 - 0.6 * nn - 0.2 * sky.s;
     for (i = 0; i < deco.length; i++) {
       d = deco[i];
       var spr = S.deco[d.k], span = W + spr.lw;
       var x = ((d.x * span - st.t * d.sp * W - st.scroll * 0.06) % span + span) % span - spr.lw / 2;
-      drawSpr(g, spr, x, d.y * H, 1, 1, d.a, 0);
+      drawSpr(g, spr, x, d.y * H, 1, 1, d.a * dim, 0);
     }
     if (st.rainbow) {
       var rb = st.rainbow, a, sweep;
@@ -733,8 +814,15 @@
     var hh = hillH(), y = H - hh;
     var x1 = -((st.scroll * 0.25) % W), x2 = -((st.scroll * 0.5) % W);
     x1 = Math.round(x1 * DPR) / DPR; x2 = Math.round(x2 * DPR) / DPR;
-    g.drawImage(S.hillBack, x1, y, W, hh); g.drawImage(S.hillBack, x1 + W, y, W, hh);
-    g.drawImage(S.hillFront, x2, y, W, hh); g.drawImage(S.hillFront, x2 + W, y, W, hh);
+    crossDraw(g, S.hills[0], x1, y, W, hh); crossDraw(g, S.hills[0], x1 + W, y, W, hh);
+    crossDraw(g, S.hills[1], x2, y, W, hh); crossDraw(g, S.hills[1], x2 + W, y, W, hh);
+    if (nn > 0.01 && Art.drawFirefly) {
+      for (i = 0; i < flies.length; i++) {
+        var f = flies[i], fx = f.x * W, fy = f.y * H;
+        if (!reduced) { fx += Math.sin(st.t * f.sp + f.ph) * M * 0.06; fy += Math.sin(st.t * f.sp * 1.3 + f.ph2) * M * 0.03; }
+        Art.drawFirefly(g, fx, fy, M * 0.012, nn * (reduced ? 0.8 : 0.6 + 0.4 * Math.sin(st.t * 2 + f.ph)));
+      }
+    }
   }
 
   function drawBar(g) {
@@ -924,6 +1012,10 @@
     st: st,
     addPoints: function (n) { addPoints(n); },
     getDirty: function () { return st.splotches ? st.splotches.map(function (s) { return s.amount; }) : []; },
+    setTime: function (ph) {
+      var o = { day: 10, sunset: CYC.day + CYC.sun / 2, night: CYC.day + CYC.sun + CYC.night / 2, sunrise: CYC.day + CYC.sun + CYC.night + CYC.rise / 2 };
+      if (o[ph] !== undefined) st.cyc = o[ph];
+    },
     cleanAll: function () {
       if (!st.splotches) return;
       st.splotches.forEach(function (s) { s.amount = 0; });
