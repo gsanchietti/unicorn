@@ -11,6 +11,7 @@ A gentle browser game for small children. Stella the unicorn flies with Bongo th
 - After about 15 stars, a muddy cloud splashes them both. **Rub the screen** to wash off the mud. When they are clean you get 5 bonus stars.
 - At the top, every 10 stars turn into one big star.
 - At 10, 25, 50 stars, and every 50 after that: confetti, a rainbow and "Bravissima!".
+- After a while the sky turns to sunset and a cozy night with a smiling moon, then back to day. The music changes from a happy tune to a lullaby.
 - The round button at the top right turns the sound on and off. Sound starts after the first tap.
 
 ## Run it
@@ -24,11 +25,13 @@ python3 -m http.server 8000
 # then open http://<your-computer-ip>:8000 on the device
 ```
 
-## Swap in new photos
+## The characters
 
-The characters are `assets/stella.png` and `assets/bongo.png`: transparent PNGs with a soft light outline. You can replace them with any transparent PNG. Stella should face right.
+Stella and Bongo are drawn in code in `js/characters.js`, copied from the photos of the real toys in `assets/photos/`. Each character is made of separate parts, so Stella gallops and Bongo turns to the player, waves and smiles. Stella's horn and butterfly slowly change color like toy lights, and flash on every star.
 
-To make them from ordinary photos, use `tools/cutout.py`. It removes the background and adds the outline:
+To change how they look, edit `js/characters.js`. Its header describes the parts and the poses.
+
+`assets/stella.png` and `assets/bongo.png` are cut-outs of the photos, used as references while drawing. To make cut-outs of new photos, use `tools/cutout.py`. It removes the background and adds a soft outline:
 
 ```sh
 python3 -m venv .venv
@@ -38,9 +41,7 @@ python3 -m venv .venv
 .venv/bin/python tools/cutout.py assets/photos/bongo.jpg  assets/bongo.png
 ```
 
-- `--turn` rotates or flips the photo so the character stands upright facing right: `none`, `left`, `right`, `flip`, `transverse`, `transpose`.
-- Photos on a plain, light background cut out best.
-- If Bongo looks too big or sits in the wrong place on Stella's back, change `BONGO_X`, `BONGO_BOTTOM` and `BONGO_H` near the top of `js/game.js`. The mud spots are placed in `SPLOT_DEF`, in `composeHero()`.
+`--turn` rotates or flips the photo so the character stands upright facing right: `none`, `left`, `right`, `flip`, `transverse`, `transpose`.
 
 ## Use recorded voices
 
@@ -58,8 +59,9 @@ The voice cues use the browser's Italian voice. To use your own recordings, put 
 - `index.html`, `style.css`: the page, paper texture and mute button
 - `js/art.js`: watercolor drawings (sky, hills, stars, clouds, mud, rainbow, bubbles)
 - `js/audio.js`: sounds and music made in code, plus voice cues
+- `js/characters.js`: Stella and Bongo, drawn and animated
 - `js/game.js`: the game itself
-- `assets/`: character pictures; `assets/photos/` holds the original photos
+- `assets/photos/`: photos of the real toys; `assets/*.png`: their cut-outs, used as drawing references
 - `tools/cutout.py`: background removal for new photos
 
 ## License
