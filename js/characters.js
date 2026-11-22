@@ -5,7 +5,8 @@
  * pre-rendered once into its own sprite (plus a soft white halo sprite for the
  * sticker-like glow). Per frame, draw() places cached sprites with translate /
  * rotate around joints and adds a few small live paths: Stella's four legs
- * (one continuous bendy shape each, so no knee seams), eyes and smiles.
+ * (jointed: upper leg, knee / hock, cannon, fetlock; one path each, so the
+ * joints never show seams), eyes and smiles.
  * Classic script: window.Characters.
  *
  *   Characters.W, Characters.H          rig frame size (rig units)
@@ -845,81 +846,109 @@
     g.restore();
   }
 
-  // ---- Stella's legs: one continuous shape per leg, built live each frame.
-  // A two-bone skeleton (hip -> joint -> fetlock) is rounded into a smooth
-  // spine and given a tapering width, so there is never a visible knee seam.
+  // ---- Stella's legs: jointed, built live each frame.
+  // Skeleton per leg: hip -> knee (carpus in front, hock behind) -> fetlock ->
+  // hoof. Each leg is ONE Path2D made of overlapping same-winding pieces
+  // (tapered upper leg, round knee, cannon, round fetlock, short pastern), so
+  // it is stroked once and then filled once: the fill hides every inner line
+  // and the joints can never show a seam or a gap, whatever the angles.
   var LEGS = {
     // hip (png), rest angles [upper, lower] (rad from straight down, + = forward), gallop phase
-    nf: { hip: R(478, 318), rest: [0.46, -0.04], ph: 0.0, front: true, far: false, A: 196, B: 172 },
-    ff: { hip: R(480, 336), rest: [-0.3, -0.2], ph: 0.5, front: true, far: true, A: 196, B: 172 },
-    nh: { hip: R(196, 326), rest: [0.02, 0.6], ph: Math.PI + 0.35, front: false, far: false, A: 222, B: 166 },
-    fh: { hip: R(176, 336), rest: [-0.16, -0.5], ph: Math.PI + 0.85, front: false, far: true, A: 222, B: 166 }
+    nf: { hip: R(478, 318), rest: [0.40, 0.10], ph: 0.0, front: true, far: false, A: 196, B: 150 },
+    ff: { hip: R(480, 336), rest: [-0.14, -0.34], ph: 0.5, front: true, far: true, A: 196, B: 150 },
+    nh: { hip: R(196, 326), rest: [0.06, 0.52], ph: Math.PI + 0.35, front: false, far: false, A: 222, B: 144 },
+    fh: { hip: R(176, 336), rest: [-0.46, -0.16], ph: Math.PI + 0.85, front: false, far: true, A: 222, B: 144 }
   };
-  var WID_FRONT = [54, 46, 35, 27, 23, 20, 18.5, 17.5, 18.5];
-  var WID_HIND = [68, 58, 42, 31, 25.5, 22, 19.5, 18.5, 19.5];
-  var SPX = new Float64Array(9), SPY = new Float64Array(9), LX = new Float64Array(9), LY = new Float64Array(9),
-    RX = new Float64Array(9), RY = new Float64Array(9);
+  var PASTERN = 27;
+  // half-widths along each bone, [front side, back side]
+  var SHAPE_FRONT = {
+    upF: [54, 46, 35, 28, 24], upB: [54, 44, 31, 24, 21.5],     // forearm: fuller in front
+    caF: [20.5, 18.5, 18], caB: [20.5, 18.5, 18],
+    paF: [17, 18], paB: [17.5, 18],
+    knee: 27.5, kneeOff: 4.5,                                    // round knee, bump to the front
+    fet: 22, fetOff: -3
+  };
+  var SHAPE_HIND = {
+    upF: [68, 58, 43, 32, 25], upB: [68, 57, 41, 31, 26],       // thigh and gaskin
+    caF: [22, 19.5, 19], caB: [22, 19.5, 19],
+    paF: [17.5, 18.5], paB: [18, 18.5],
+    knee: 28.5, kneeOff: -6.5,                                   // hock: bump points backward
+    fet: 22.5, fetOff: -3
+  };
+  var LX = new Float64Array(5), LY = new Float64Array(5), RX = new Float64Array(5), RY = new Float64Array(5);
+  var NRM = [0, 0];
+
+  // One tapered bone as a closed clockwise sub-path; leaves its unit normal (front side) in NRM.
+  function bone(p, x0, y0, x1, y1, wf, wb, k) {
+    var n = wf.length, dx = x1 - x0, dy = y1 - y0, d = Math.sqrt(dx * dx + dy * dy) || 1,
+      nx = dy / d, ny = -dx / d, i, t;
+    for (i = 0; i < n; i++) {
+      t = i / (n - 1);
+      LX[i] = x0 + dx * t + nx * wf[i] * k; LY[i] = y0 + dy * t + ny * wf[i] * k;
+      RX[i] = x0 + dx * t - nx * wb[i] * k; RY[i] = y0 + dy * t - ny * wb[i] * k;
+    }
+    p.moveTo(LX[0], LY[0]);
+    for (i = 1; i < n - 1; i++) p.quadraticCurveTo(LX[i], LY[i], (LX[i] + LX[i + 1]) / 2, (LY[i] + LY[i + 1]) / 2);
+    p.lineTo(LX[n - 1], LY[n - 1]); p.lineTo(RX[n - 1], RY[n - 1]);
+    for (i = n - 2; i > 0; i--) p.quadraticCurveTo(RX[i], RY[i], (RX[i] + RX[i - 1]) / 2, (RY[i] + RY[i - 1]) / 2);
+    p.lineTo(RX[0], RY[0]);
+    p.closePath();
+    NRM[0] = nx; NRM[1] = ny;
+  }
+  function ball(p, x, y, r) { p.moveTo(x + r, y); p.arc(x, y, r, 0, TAU); p.closePath(); }
 
   function legPose(L, ph, run, by) {
     var c = ph + L.ph, s = Math.sin(c), bump, a1, a2;
     if (L.front) {
-      // reach far forward almost straight, then tuck the knee under while coming back
+      // reach forward almost straight, then fold the knee (cannon swings back) while recovering
       bump = 0.5 + 0.5 * Math.cos(c + 0.9); bump *= bump;
-      a1 = 0.3 + 0.58 * s; a2 = a1 - (0.12 + 0.68 * bump);
+      a1 = 0.3 + 0.58 * s; a2 = a1 - (0.1 + 1.05 * bump);
     } else {
-      // stretch out behind, then tuck up and swing under the belly
-      bump = 0.5 + 0.5 * Math.cos(c - 0.1); bump *= bump;
-      a1 = -0.12 + 0.5 * s; a2 = a1 + 0.26 - 0.8 * bump;
+      // push out behind almost straight, then flex the hock (it points backward) to swing under the belly
+      bump = 0.5 + 0.5 * Math.cos(c + 0.75); bump *= bump;
+      a1 = -0.14 + 0.52 * s; a2 = a1 + 0.16 + 0.95 * bump;
     }
     var idle = 1 - run;
     a1 = L.rest[0] * idle + a1 * run;
     a2 = L.rest[1] * idle + a2 * run;
-    var far = L.far ? 0.86 : 1, wid = L.front ? WID_FRONT : WID_HIND;
+    var k = L.far ? 0.86 : 1, sh = L.front ? SHAPE_FRONT : SHAPE_HIND;
     var hx = L.hip[0], hy = L.hip[1] + by;
     var kx = hx + Math.sin(a1) * L.A, ky = hy + Math.cos(a1) * L.A;
     var fx = kx + Math.sin(a2) * L.B, fy = ky + Math.cos(a2) * L.B;
-    // spine: straight, rounded around the joint, straight
-    var p1x = hx + (kx - hx) * 0.66, p1y = hy + (ky - hy) * 0.66, p2x = kx + (fx - kx) * 0.36, p2y = ky + (fy - ky) * 0.36, i, t, u;
-    SPX[0] = hx; SPY[0] = hy;
-    SPX[1] = hx + (kx - hx) * 0.33; SPY[1] = hy + (ky - hy) * 0.33;
-    SPX[2] = p1x; SPY[2] = p1y;
-    for (i = 1; i <= 3; i++) {
-      t = i / 4; u = 1 - t;
-      SPX[2 + i] = u * u * p1x + 2 * u * t * kx + t * t * p2x;
-      SPY[2 + i] = u * u * p1y + 2 * u * t * ky + t * t * p2y;
-    }
-    SPX[6] = p2x; SPY[6] = p2y;
-    SPX[7] = kx + (fx - kx) * 0.7; SPY[7] = ky + (fy - ky) * 0.7;
-    SPX[8] = fx; SPY[8] = fy;
-    for (i = 0; i < 9; i++) {
-      var ia = i ? i - 1 : 0, ib = i < 8 ? i + 1 : 8;
-      var tx = SPX[ib] - SPX[ia], ty = SPY[ib] - SPY[ia], d = Math.sqrt(tx * tx + ty * ty) || 1, w = wid[i] * far;
-      // front edge a touch fuller on the upper leg (forearm / thigh muscle)
-      LX[i] = SPX[i] + ty / d * w; LY[i] = SPY[i] - tx / d * w;
-      RX[i] = SPX[i] - ty / d * w; RY[i] = SPY[i] + tx / d * w;
-    }
-    var p = new Path2D();
-    p.moveTo(LX[0], LY[0]);
-    for (i = 1; i < 8; i++) p.quadraticCurveTo(LX[i], LY[i], (LX[i] + LX[i + 1]) / 2, (LY[i] + LY[i + 1]) / 2);
-    p.lineTo(LX[8], LY[8]); p.lineTo(RX[8], RY[8]);
-    for (i = 7; i > 0; i--) p.quadraticCurveTo(RX[i], RY[i], (RX[i] + RX[i - 1]) / 2, (RY[i] + RY[i - 1]) / 2);
-    p.lineTo(RX[0], RY[0]);
-    p.closePath();
-    // highlight streak + coat dots down the front of the leg
-    var hl = null, dots = null;
+    // hoof: mostly level, toe tips down when the leg is folded or trailing; the pastern follows it
+    var hr = L.front ? -a2 * 0.4 + Math.max(0, a1 - a2) * 1.1 : -a2 * 0.35 + Math.max(0, -a2) * 1.3 + Math.max(0, a2 - a1 - 0.3) * 0.5;
+    var a3 = 0.22 - hr * 0.75 + a2 * 0.25;
+    var ex = fx + Math.sin(a3) * PASTERN, ey = fy + Math.cos(a3) * PASTERN;
+
+    var p = new Path2D(), n1x, n1y, n2x, n2y, kcx, kcy, fcx, fcy;
+    bone(p, hx, hy, kx, ky, sh.upF, sh.upB, k); n1x = NRM[0]; n1y = NRM[1];
+    bone(p, kx, ky, fx, fy, sh.caF, sh.caB, k); n2x = NRM[0]; n2y = NRM[1];
+    bone(p, fx, fy, ex, ey, sh.paF, sh.paB, k);
+    kcx = kx + (n1x + n2x) * 0.5 * sh.kneeOff * k; kcy = ky + (n1y + n2y) * 0.5 * sh.kneeOff * k;
+    fcx = fx + n2x * sh.fetOff * k; fcy = fy + n2y * sh.fetOff * k;
+    ball(p, kcx, kcy, sh.knee * k);
+    ball(p, fcx, fcy, sh.fet * k);
+
+    // near legs: highlight streak down the front, a soft shine on the knee, coat dots
+    var hl = null, dots = null, shine = null, i, t, q;
     if (!L.far) {
       hl = new Path2D();
-      hl.moveTo(SPX[3] + (LX[3] - SPX[3]) * 0.3, SPY[3] + (LY[3] - SPY[3]) * 0.3);
-      for (i = 4; i < 8; i++) hl.lineTo(SPX[i] + (LX[i] - SPX[i]) * 0.3, SPY[i] + (LY[i] - SPY[i]) * 0.3);
+      hl.moveTo(hx + (kx - hx) * 0.45 + n1x * 11, hy + (ky - hy) * 0.45 + n1y * 11);
+      hl.lineTo(hx + (kx - hx) * 0.8 + n1x * 8, hy + (ky - hy) * 0.8 + n1y * 8);
+      hl.moveTo(kx + (fx - kx) * 0.3 + n2x * 6, ky + (fy - ky) * 0.3 + n2y * 6);
+      hl.lineTo(kx + (fx - kx) * 0.82 + n2x * 6, ky + (fy - ky) * 0.82 + n2y * 6);
+      shine = new Path2D();
+      q = L.front ? 7 : -5;
+      shine.arc(kcx + (n1x + n2x) * 0.5 * q - 2, kcy + (n1y + n2y) * 0.5 * q - 5, sh.knee * 0.42, 0, TAU);
       dots = new Path2D();
-      for (i = 2; i < 8; i++) {
-        var k = (i % 2 ? 0.45 : -0.4), dxp = SPX[i] + (RX[i] - SPX[i]) * k, dyp = SPY[i] + (RY[i] - SPY[i]) * k;
-        dots.moveTo(dxp + 3, dyp); dots.arc(dxp, dyp, i < 4 ? 3.2 : 2.4, 0, TAU);
+      for (i = 0; i < 6; i++) {
+        q = i % 2 ? -9 : 8;
+        if (i < 3) { t = 0.32 + i * 0.2; t = [hx + (kx - hx) * t + n1x * q * 1.5, hy + (ky - hy) * t + n1y * q * 1.5]; }
+        else { t = 0.3 + (i - 3) * 0.27; t = [kx + (fx - kx) * t + n2x * q * 0.8, ky + (fy - ky) * t + n2y * q * 0.8]; }
+        dots.moveTo(t[0] + 3, t[1]); dots.arc(t[0], t[1], i < 3 ? 3.2 : 2.4, 0, TAU);
       }
     }
-        // hoof: mostly level, toe tips down when the leg is lifted or trailing
-    var hr = L.front ? -a2 * 0.4 + Math.max(0, a1 - a2) * 1.5 : -a2 * 0.35 + Math.max(0, -a2) * 1.3;
-    return { p: p, hl: hl, dots: dots, hx: hx, hy: hy, fx: fx, fy: fy, hr: hr, far: L.far };
+    return { p: p, hl: hl, dots: dots, shine: shine, hx: hx, hy: hy, fx: ex, fy: ey, hr: hr, far: L.far };
   }
 
   function legHalo(g, lp, P) {
@@ -929,21 +958,25 @@
     placeHalo(g, lp.far ? P.hoofFar : P.hoofNear, lp.fx, lp.fy, lp.hr);
   }
 
+  // Outline first (double width), fill on top: only the outer half of the line
+  // survives, so the overlapping pieces read as one shape.
   function legDraw(g, lp, P) {
-    var gr = g.createLinearGradient(lp.hx, lp.hy, lp.fx, lp.fy), st = g.createLinearGradient(lp.hx, lp.hy, lp.fx, lp.fy);
+    var gr = g.createLinearGradient(lp.hx, lp.hy, lp.fx, lp.fy), st;
     if (lp.far) {
       gr.addColorStop(0, '#d2a0be'); gr.addColorStop(1, '#bf8bb0');
+      g.strokeStyle = C.line; g.lineWidth = 5.5; g.stroke(lp.p);
       g.fillStyle = gr; g.fill(lp.p);
-      g.strokeStyle = C.line; g.lineWidth = 3; g.stroke(lp.p);
     } else {
       // the top fades into the body so thigh and shoulder melt into the torso
+      st = g.createLinearGradient(lp.hx, lp.hy, lp.fx, lp.fy);
       gr.addColorStop(0, 'rgba(220,168,198,0)'); gr.addColorStop(0.07, 'rgba(220,168,198,0)');
       gr.addColorStop(0.22, 'rgba(222,170,200,1)'); gr.addColorStop(0.6, '#e6b4cd'); gr.addColorStop(1, '#dca6c4');
       st.addColorStop(0, 'rgba(' + C.lineRGB + ',0)'); st.addColorStop(0.1, 'rgba(' + C.lineRGB + ',0)');
       st.addColorStop(0.26, 'rgba(' + C.lineRGB + ',0.66)'); st.addColorStop(1, 'rgba(' + C.lineRGB + ',0.66)');
+      g.strokeStyle = st; g.lineWidth = 5.5; g.stroke(lp.p);
       g.fillStyle = gr; g.fill(lp.p);
-      g.strokeStyle = st; g.lineWidth = 3; g.stroke(lp.p);
       g.strokeStyle = 'rgba(255,255,255,0.3)'; g.lineWidth = 7; g.stroke(lp.hl);
+      g.fillStyle = 'rgba(255,255,255,0.3)'; g.fill(lp.shine);
       g.fillStyle = 'rgba(255,255,255,0.8)'; g.fill(lp.dots);
     }
     place(g, lp.far ? P.hoofFar : P.hoofNear, lp.fx, lp.fy, lp.hr);
