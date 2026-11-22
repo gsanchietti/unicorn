@@ -1,0 +1,6 @@
+{
+  "name": "bella-tests",
+  "private": true,
+  "scripts": { "test": "node --test" },
+  "devDependencies": { "puppeteer-core": "^23.0.0" }
+}

@@ -32,9 +32,17 @@ xdg-open index.html                  # works straight from file://
 python3 -m http.server 8000          # needed to test the service worker / phone on the LAN
 ```
 
-**Test before saying something works.** Two ways:
+**Test before saying something works.** Run the automated tests, then check by eye when needed:
 
-1. **puppeteer-core + headless system Chrome.** puppeteer-core is not a repo dependency, so install it in a scratch folder (`npm i puppeteer-core`). Use `puppeteer.launch({ executablePath: '/usr/bin/google-chrome', headless: 'new', args: ['--autoplay-policy=no-user-gesture-required'] })`.
+```sh
+cd tests && npm install && npm test   # headless system Chrome (CHROME_PATH to override), about 70 s
+```
+
+`tests/helpers.js` has the static server and page helpers; `tests/game.test.js` plays the game through the `window.__bella` hook at 390x844 and 844x390 and asserts no console errors.
+
+Other ways:
+
+1. **Ad-hoc puppeteer-core + headless system Chrome.** puppeteer-core is not a repo dependency, so install it in a scratch folder (`npm i puppeteer-core`). Use `puppeteer.launch({ executablePath: '/usr/bin/google-chrome', headless: 'new', args: ['--autoplay-policy=no-user-gesture-required'] })`.
    - Sizes used so far: phone 390x844 and 844x390 (DPR 3, `hasTouch`, `isMobile`), tablet 1024x768 and 768x1024 (DPR 2).
    - Collect `console` errors and warnings, `pageerror` and `requestfailed`. The expected result is an empty list.
    - Full play-through:

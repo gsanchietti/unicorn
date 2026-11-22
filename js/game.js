@@ -1096,4 +1096,8 @@
       st.dirtyNeed = true;
     }
   };
+
+  // Temporary adapter (scene split, step 1): the shape the headless tests use.
+  window.__bella.scene = function () { return st.mode === 'title' ? 'title' : 'stars'; };
+  window.__bella.stars = { st: st, addPoints: window.__bella.addPoints, cleanAll: window.__bella.cleanAll };
 })();
