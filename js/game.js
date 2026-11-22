@@ -41,7 +41,7 @@
     hero: { x: 0, y: 0, h: 100, vy: 0, rot: 0 },
     from: null, toDur: 0.9,
     starT: 0.6, cloudT: 2.0, trailT: 0, noCtl: 0,
-    cyc: 0, mood: 'day', rainbow: null, bigPop: 9, slotPop: [], nBonusDone: 0, fade: 1, sparkT: 0
+    fx: { glow: 0, wave: 0, hap: 0, hapDur: 1, hapAmp: 0 }, runV: 0, faceV: 0, cyc: 0, mood: 'day', rainbow: null, bigPop: 9, slotPop: [], nBonusDone: 0, fade: 1, sparkT: 0
   };
   var i0;
   for (i0 = 0; i0 < 10; i0++) st.slotPop.push(9);
@@ -53,65 +53,20 @@
 
   // ---------------------------------------------------------------- sprites
   var S = {};            // size-dependent sprites
-  var heroImg = null, dirtyC = null, dirtyG = null, HW = 657, HC = 730;
-  var BONGO_X = 0.45, BONGO_BOTTOM = 0.53, BONGO_H = 0.48, MT = 30;
-  var SPLOT_DEF = null;
-
-  function placeholder(w, h, color, shape) {
-    var c = document.createElement('canvas');
-    c.width = w; c.height = h;
-    var g = c.getContext('2d');
-    g.fillStyle = color;
-    g.beginPath();
-    g.arc(w / 2, h * 0.55, Math.min(w, h) * 0.42, 0, TAU);
-    g.fill();
-    g.fillStyle = '#fff';
-    g.beginPath(); g.arc(w * 0.62, h * 0.45, w * 0.05, 0, TAU); g.arc(w * 0.38, h * 0.45, w * 0.05, 0, TAU); g.fill();
-    return c;
-  }
-
-  function composeHero(stella, bongo) {
-    var sw = stella.width, sh = stella.height;
-    var bh = sh * BONGO_H, bw = bh * bongo.width / bongo.height;
-    HW = sw; HC = sh + MT;
-    var c = document.createElement('canvas');
-    c.width = HW; c.height = HC;
-    var g = c.getContext('2d');
-    g.imageSmoothingQuality = 'high';
-    g.drawImage(stella, 0, MT, sw, sh);
-    var bx = BONGO_X * sw - bw / 2, by = MT + BONGO_BOTTOM * sh - bh;
-    g.drawImage(bongo, bx, by, bw, bh);
-    heroImg = c;
-    dirtyC = document.createElement('canvas');
-    dirtyC.width = HW; dirtyC.height = HC;
-    dirtyG = dirtyC.getContext('2d');
-    // splotch positions: stella-image fractions or bongo-image fractions
-    function sp(fx, fy, rf) { return { x: fx * sw, y: MT + fy * sh, rf: rf }; }
-    function bp(fx, fy, rf) { return { x: bx + fx * bw, y: by + fy * bh, rf: rf }; }
-    SPLOT_DEF = [
-      sp(0.24, 0.42, 1.0), sp(0.5, 0.58, 1.0), sp(0.68, 0.5, 0.95), sp(0.77, 0.33, 0.85),
-      sp(0.87, 0.24, 0.8), sp(0.27, 0.76, 0.7), sp(0.68, 0.76, 0.7),
-      bp(0.34, 0.27, 0.75), bp(0.5, 0.6, 0.95), bp(0.15, 0.45, 0.65)
-    ];
-  }
-
-  function loadHero(done) {
-    var imgs = {}, left = 2;
-    function fin() {
-      if (--left) return;
-      composeHero(imgs.s || placeholder(657, 700, '#ffb8d6'), imgs.b || placeholder(519, 700, '#8a6a4a'));
-      done();
-    }
-    ['s', 'b'].forEach(function (k) {
-      var im = new Image();
-      im.onload = function () { imgs[k] = im; fin(); };
-      im.onerror = function () { fin(); };
-      im.src = k === 's' ? 'assets/stella.png' : 'assets/bongo.png';
-    });
-  }
+  var CHR = window.Characters;
+  var HW = CHR.W, HC = CHR.H;                 // rig frame (rig units)
+  var dirtyC = document.createElement('canvas'), dirtyG = dirtyC.getContext('2d');
+  var SPLOT_DEF = (function () {
+    var A = CHR.anchors, u = 0.075 * 657 * 1.28;   // 0.075 x Stella width in rig units
+    function d(a, rf) { return { x: a[0], y: a[1], rf: rf }; }
+    return [d(A.stellaHind, 1.0), d(A.stellaBelly, 1.0), d(A.stellaChest, 0.95), d(A.stellaNeck, 0.85),
+      d(A.stellaCheek, 0.8), d(A.stellaLegBack, 0.7), d(A.stellaLegFront, 0.7),
+      d(A.bongoCheek, 0.6), d(A.bongoTummy, 0.75), d(A.bongoArm, 0.55)].map(function (o) { o.rf *= 1; o.u = u; return o; });
+  })();
+  var pose = { t: 0, run: 0, wave: 0, happy: 0, look: 0, glow: 0.5, face: undefined };
 
   // ---------------------------------------------------------------- geometry
-  function heroFlyH() { return Math.min(H * 0.34, W * 0.42); }
+  function heroFlyH() { return Math.min(H * 0.42, W * 0.52); }
   function heroAspect() { return HW / HC; }
   function flyX() { return W * (W < H ? 0.3 : 0.26); }
   function baseSpeed() { return Math.max(0.26 * W, 0.18 * H); }
@@ -213,6 +168,10 @@
     S.deco = [1, 2, 3, 4].map(function (s) { return Art.cloudSprite(M * (0.34 + s * 0.07), DPR, { seed: s * 11, face: false }); });
     S.spark = [makeSparkle('#fffbe0', '#ffe581'), makeSparkle('#ffffff', '#ffb8d6'), makeSparkle('#fffbff', '#d3bdf2')];
     barMetrics();
+    S.ppuFly = heroFlyH() / HC * DPR;
+    S.ppuWash = washTarget().h / HC * DPR;
+    CHR.prerender(S.ppuFly);
+    CHR.prerender(S.ppuWash);
     if (!deco.length) {
       for (var i = 0; i < 40; i++) twinkles.push({ x: Math.random(), y: 0.02 + Math.random() * 0.5, r: 0.008 + Math.random() * 0.012, sp: rnd(0.4, 1.4), ph: rnd(0, TAU) });
       for (i = 0; i < 6; i++) flies.push({ x: Math.random(), y: 0.6 + Math.random() * 0.2, sp: rnd(0.2, 0.4), ph: rnd(0, TAU), ph2: rnd(0, TAU) });
@@ -450,7 +409,16 @@
     if (st.score > st.best) { st.best = st.score; saveBest(); }
     if (milestoneIn(old, st.score)) milestone();
   }
+  function happyBlip(amp, dur) {
+    var f = st.fx;
+    if (amp >= f.hap * (f.hapAmp || 0) || f.hap <= 0) { f.hap = dur; f.hapDur = dur; f.hapAmp = amp; }
+  }
+  function starEvent() {
+    st.fx.glow = 0.8; st.fx.wave = Math.max(st.fx.wave, 1.2);
+    happyBlip(0.7, 0.7);
+  }
   function milestone() {
+    st.fx.wave = Math.max(st.fx.wave, 2); happyBlip(1, 2);
     confetti();
     st.rainbow = { t: 0 };
     snd('fanfare');
@@ -481,7 +449,7 @@
     droplets(h.x, h.y, 26);
     st.mud = null;
     var shapes = SPLOT_DEF.map(function (d, i) {
-      return { x: d.x, y: d.y, r: d.rf * 0.075 * HW, amount: 1, shape: Art.makeSplotch(Art.rng(i * 17 + 3)) };
+      return { x: d.x, y: d.y, r: d.rf * d.u, amount: 1, shape: Art.makeSplotch(Art.rng(i * 17 + 3)) };
     });
     st.splotches = shapes;
     st.popT = 0; st.dirtyNeed = true;
@@ -542,11 +510,19 @@
     st.bubbles.push({ x: x + rnd(-1, 1) * M * 0.02, y: y + rnd(-1, 1) * M * 0.02, vy: rnd(0.05, 0.12) * M, ph: rnd(0, TAU), life: 0, max: rnd(1.0, 1.8) * (reduced ? 0.6 : 1), k: (Math.random() * 3) | 0 });
   }
 
-  function renderDirty() {
-    var g = dirtyG, sp = st.splotches;
+  function nearPpu(h) {
+    var k = h.h / HC * DPR;
+    return Math.abs(Math.log(k / S.ppuFly)) <= Math.abs(Math.log(k / S.ppuWash)) ? S.ppuFly : S.ppuWash;
+  }
+  // rig drawn into the offscreen canvas, then mud 'source-atop' at the anchors
+  function renderDirty(pu) {
+    var g = dirtyG, sp = st.splotches, w = Math.ceil(HW * pu), hh = Math.ceil(HC * pu);
+    if (dirtyC.width !== w || dirtyC.height !== hh) { dirtyC.width = w; dirtyC.height = hh; }
+    g.setTransform(1, 0, 0, 1, 0, 0);
     g.globalCompositeOperation = 'source-over';
-    g.clearRect(0, 0, HW, HC);
-    g.drawImage(heroImg, 0, 0);
+    g.clearRect(0, 0, w, hh);
+    g.setTransform(pu, 0, 0, pu, 0, 0);
+    CHR.draw(g, pose, pu);
     if (sp) {
       g.globalCompositeOperation = 'source-atop';
       for (var i = 0; i < sp.length; i++) {
@@ -578,7 +554,8 @@
 
   function heroBody() {
     var h = st.hero;
-    return { x: h.x - h.h * 0.02, y: h.y + h.h * 0.04, r: h.h * 0.34 };
+    var k = h.h / HC, b = CHR.anchors.body;
+    return { x: h.x + (b.x - HW / 2) * k, y: h.y + (b.y - HC / 2) * k, r: b.r * k };
   }
 
   function holding() {
@@ -586,6 +563,34 @@
     var any = false;
     pointers.forEach(function (p) { if (!p.sup) any = true; });
     return any;
+  }
+
+  function updatePose(dt) {
+    var f = st.fx, mode = st.mode;
+    f.glow = Math.max(0, f.glow - dt); f.wave = Math.max(0, f.wave - dt); f.hap = Math.max(0, f.hap - dt);
+    var runT = 0;
+    if (mode === 'fly') runT = holding() ? 1 : 0.7;
+    else if (mode === 'toFly') runT = 1;
+    else if (mode === 'toWash') runT = 0.7 * (1 - smooth(st.mt / st.toDur));
+    if (reduced) runT = Math.min(runT, 0.4);
+    st.runV += (runT - st.runV) * Math.min(1, dt * 4);
+    var happy = 0;
+    if (f.hap > 0) {
+      var e = f.hapDur - f.hap;
+      happy = f.hapAmp * Math.min(1, e / 0.15, f.hap / 0.3);
+    }
+    var wave = Math.min(1, f.wave / 0.3);
+    var faceT = -1;                               // -1 = auto
+    if (mode === 'toWash' || mode === 'wash') { faceT = 0; happy = 0; wave = 0; }
+    else if (mode === 'clean') { faceT = 1; happy = 1; wave = 1; }
+    else if (mode === 'toFly' && st.mt < st.toDur) faceT = 0;
+    else if (reduced && wave <= 0 && happy <= 0) faceT = 0;
+    if (faceT >= 0) {
+      st.faceV += (faceT - st.faceV) * Math.min(1, dt * 6);
+      pose.face = st.faceV;
+    } else { pose.face = undefined; st.faceV = 0; }
+    pose.t = st.t; pose.run = st.runV; pose.wave = wave; pose.happy = happy;
+    pose.glow = 0.5 + 0.5 * Math.min(1, f.glow / 0.8);
   }
 
   function updateFly(dt) {
@@ -625,6 +630,7 @@
         burst(s.x, s.y, 12, M * 0.35);
         st.sinceWash++;
         snd('star', st.sinceWash);
+        starEvent();
         addPoints(1);
         st.stars.splice(i, 1);
         continue;
@@ -643,6 +649,7 @@
         h.vy = dir * 0.55 * H;
         st.noCtl = 0.3;
         snd('boing');
+        happyBlip(0.5, 0.4);
       }
       if (s.x < -S.cloudW * 1.5) st.clouds.splice(i, 1);
     }
@@ -685,6 +692,7 @@
     for (i = 0; i < 10; i++) if (st.slotPop[i] < 9) st.slotPop[i] += dt;
     if (st.bigPop < 9) st.bigPop += dt;
 
+    updatePose(dt);
     if (mode === 'title') {
       var t = titleTarget();
       h.x = t.x; h.y = t.y; h.h = t.h; h.rot = 0;
@@ -747,9 +755,6 @@
       }
     }
 
-    if (st.dirtyNeed && st.splotches !== undefined) {
-      renderDirty(); st.dirtyNeed = false;
-    }
     updateParts(dt);
   }
 
@@ -757,20 +762,25 @@
   function drawHero(g) {
     var h = st.hero, w = h.h * heroAspect();
     var bob = 0;
-    if (!reduced && (st.mode === 'fly' || st.mode === 'title' || st.mode === 'toFly')) bob = Math.sin(st.t * 2.4) * M * 0.011;
-    var img = (st.splotches && (st.mode === 'toWash' || st.mode === 'wash' || st.mode === 'clean')) ? dirtyC : heroImg;
-    if (st.mode === 'clean' && !st.splotches) img = heroImg;
-    if (st.mode === 'toWash' && st.mt === 0) img = dirtyC;
-    if (!img) return;
+    if (!reduced && (st.mode === 'fly' || st.mode === 'title' || st.mode === 'toFly')) bob = Math.sin(st.t * 2.4) * M * 0.006;
+    var pu = nearPpu(h);
+    var dirty = st.splotches && (st.mode === 'toWash' || st.mode === 'wash' || st.mode === 'clean');
+    if (dirty) renderDirty(pu);
     g.save();
     g.translate(h.x, h.y + bob);
     if (h.rot) g.rotate(h.rot);
-    g.imageSmoothingEnabled = true;
-    g.imageSmoothingQuality = 'high';
     var sc = 1;
     if (st.mode === 'clean') sc = 1 + 0.025 * Math.sin(st.mt * 6) * Math.max(0, 1 - st.mt);
     g.scale(sc, sc);
-    g.drawImage(img, -w / 2, -h.h / 2, w, h.h);
+    if (dirty) {
+      g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
+      g.drawImage(dirtyC, -w / 2, -h.h / 2, w, h.h);
+    } else {
+      var k = h.h / HC;
+      g.scale(k, k);
+      g.translate(-HW / 2, -HC / 2);
+      CHR.draw(g, pose, pu);
+    }
     g.restore();
   }
 
@@ -1002,14 +1012,12 @@
   // ------------------------------------------------------------------- boot
   applySize();
   build();
-  loadHero(function () {
-    refit();
-    var t = titleTarget(); st.hero.x = t.x; st.hero.y = t.y; st.hero.h = t.h;
-    requestAnimationFrame(frame);
-  });
+  refit();
+  (function () { var t = titleTarget(); st.hero.x = t.x; st.hero.y = t.y; st.hero.h = t.h; })();
+  requestAnimationFrame(frame);
 
   window.__stella = {
-    st: st,
+    st: st, pose: pose,
     addPoints: function (n) { addPoints(n); },
     getDirty: function () { return st.splotches ? st.splotches.map(function (s) { return s.amount; }) : []; },
     setTime: function (ph) {
