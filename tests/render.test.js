@@ -64,6 +64,51 @@ test('street in day and night, within the render budget', () => open(390, 844, a
   assert.ok(cost < BUDGET_MS, 'street render ' + cost.toFixed(2) + ' ms >= ' + BUDGET_MS + ' ms');
 }));
 
+// Town sheet: every Town sprite by day and by night, both life sprites, the jar
+// at several totals and the three signs, on the wall color.
+test('town sheet', () => open(390, 844, async (page) => {
+  // how long the street waits for its sprites on this phone (once per resize)
+  const buildMs = await ev(page, () => {
+    const t0 = performance.now();
+    window.Town.build(390, 2);
+    return performance.now() - t0;
+  });
+  console.log('Town.build(390, 2) ms:', buildMs.toFixed(0));
+  const url = await ev(page, () => {
+    const T = window.Town, U = 300, dpr = 2;
+    T.build(U, dpr);
+    const c = document.createElement('canvas');
+    c.width = 2400 * dpr; c.height = 2000 * dpr;
+    const g = c.getContext('2d');
+    g.scale(dpr, dpr);
+    g.fillStyle = '#f7f1e6'; g.fillRect(0, 0, 2400, 1000);
+    g.fillStyle = '#2f427f'; g.fillRect(0, 1000, 2400, 1000);
+    for (const night of [false, true]) {
+      const y0 = night ? 1000 : 0;
+      let x = 20, base = y0 + 440;
+      T.KINDS.forEach((k, i) => {
+        const s = T.sprite(k, night);
+        if (i === 5) { x = 20; base = y0 + 900; }
+        g.drawImage(s.c, x, base - s.h, s.w, s.h);
+        x += s.w + 30;
+      });
+      for (const k of ['mouseBalloon', 'butterfly']) {
+        const s = T.lifeSprite(k);
+        g.drawImage(s.c, x, base - s.h, s.w, s.h);
+        x += s.w + 30;
+      }
+      const tile = T.groundTile();
+      g.drawImage(tile.c, x, base - tile.h, tile.w, tile.h);
+      // the jar at a few totals, and the signs
+      [0, 7, 23, 60, 130].forEach((n, i) => T.drawJar(g, 1700 + i * 150, y0 + 900, U * 0.6, n, 0));
+      ['star', 'cake', 'octopus'].forEach((k, i) => T.drawSign(g, 1760 + i * 240, y0 + 110, 80, k, 0.7));
+      ['star', 'cake', 'octopus'].forEach((k, i) => T.drawSign(g, 1760 + i * 240, y0 + 260, 30, k, 0.7));
+    }
+    return c.toDataURL('image/png');
+  });
+  fs.writeFileSync(path.join(OUT, 'town.png'), Buffer.from(url.split(',')[1], 'base64'));
+}));
+
 test('street, phone landscape', () => open(844, 390, async (page) => {
   await toStreet(page);
   await ev(page, () => window.__bella.setTime('day'));
@@ -164,7 +209,9 @@ const POSES = [
   ...[0, 1, 2, 3, 4, 5].map((i) => ({ name: 'gallop ' + i, pose: { t: 20 + i / 12, run: 1, face: 0 } })),
   { name: 'Bongo front', pose: { t: 0.5, run: 0, face: 1 } },
   { name: 'Bongo profile', pose: { t: 3.1, run: 0.4, face: 0, look: 1 } },
-  { name: 'happy', pose: { t: 0.5, run: 0, happy: 1, wave: 1, glow: 1 } }
+  { name: 'happy', pose: { t: 0.5, run: 0, happy: 1, wave: 1, glow: 1 } },
+  // the street's walk: 8 phases of one walk cycle (see pose.stride in js/characters.js)
+  ...[0, 1, 2, 3, 4, 5, 6, 7].map((i) => ({ name: 'walk ' + i, pose: { t: 31 + i / 16, run: 0, walk: 1, stride: i / 16, face: 0 } }))
 ];
 
 test('character sheet, and Characters.draw under 1 ms', () => open(390, 844, async (page) => {
