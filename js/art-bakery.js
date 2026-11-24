@@ -220,7 +220,8 @@
 
   // ------------------------------------------------------------------- room
   function windowRect(W, H) {
-    var top = Math.max(0.07 * H, 60), ct = COUNTER * H;
+    // in portrait the frame clears #home and #mute (about 80 px tall at the top right)
+    var top = H > W ? Math.max(0.12 * H, 100) : Math.max(0.07 * H, 60), ct = COUNTER * H;
     var w = Math.min(0.56 * W, 0.9 * u);
     var h = Math.max(u * 0.12, Math.min(0.22 * H, 0.4 * u, ct - 0.36 * u - top));
     return { x: W / 2 - w / 2, y: top, w: w, h: h };
