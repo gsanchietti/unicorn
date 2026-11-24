@@ -108,9 +108,9 @@ Script order in `index.html` matters: `js/art.js`, `js/art-town.js`, `js/art-bak
 - Bella's legs are jointed: upper leg, round knee (front) or hock (hind), cannon, fetlock, hoof. Each leg is still one path, so joints show no seams. Knee roundness is tuned by `knee` / `kneeOff` in `SHAPE_FRONT` / `SHAPE_HIND`; the joint angles come from `legPose`.
 
 ### audio.js
-- API: `init`, `isMuted`, `setMuted`, `toggleMute`, `star(n)`, `bubble`, `boing`, `splat`, `fanfare`, `sparkle`, `clipClop`, `door`, `say(key)`, `setMood('day'|'night')`, `getMood`, `setPlace('street'|'stars')`, `suspend`, `resume`. Keys starting with `_` are test hooks.
-- Music: a marimba day song for the star game, a calmer marimba street song for the street and start page, and a music-box night lullaby shared by both. `setPlace` picks the day song, `setMood` switches day/night; both crossfade at a bar boundary, and before `init()` the choice is remembered.
-- Voice: `say('via'|'bravissima'|'laviamo'|'puliti'|'andiamo')` uses Web Speech with `it-IT`.
+- API: `init`, `isMuted`, `setMuted`, `toggleMute`, `star(n)`, `bubble`, `boing`, `splat`, `fanfare`, `sparkle`, `clipClop`, `door`, `ding`, `squish` (rate-limited 0.15 s), `plop`, `bell`, `munch`, `say(key)`, `setMood('day'|'night')`, `getMood`, `setPlace('street'|'bakery'|'stars')`, `suspend`, `resume`. Keys starting with `_` are test hooks.
+- Music: a marimba day song for the star game, a calmer marimba street song for the street and start page, a music-box and pizzicato bakery song, and a music-box night lullaby shared by all. `setPlace` picks the day song, `setMood` switches day/night; both crossfade at a bar boundary, and before `init()` the choice is remembered.
+- Voice: `say('via'|'bravissima'|'laviamo'|'puliti'|'andiamo'|'chebuona'|'grazie')` uses Web Speech with `it-IT`.
   - Recorded mp3s are opt-in: drop `assets/sounds/<key>.mp3` and add the key to `RECORDED` in audio.js.
   - Unlisted keys are never requested, so missing files cause no 404s.
 - `Sound.init()` (via `Core.snd('init')`) runs on **both** pointerdown and pointerup. Mobile browsers unlock audio on pointerup.

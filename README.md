@@ -78,6 +78,8 @@ The voice cues use the browser's Italian voice. To use your own recordings, put 
 | `laviamo.mp3` | "Laviamoli!" | the washing starts |
 | `puliti.mp3` | "Che puliti!" | they are clean |
 | `andiamo.mp3` | "Andiamo!" | Bella goes through the sky gate to the star game |
+| `chebuona.mp3` | "Che buona!" | a friend in the bakery enjoys the cake |
+| `grazie.mp3` | "Grazie!" | the friend thanks Bella and Bongo for the cake |
 
 ## Update the offline copy
 

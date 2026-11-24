@@ -29,7 +29,7 @@
  * Scene shape:
  *   { home: 'scene'|null,    // #home is shown when set; a click goes there (one level back)
  *     clock: bool,           // whether the day/night cycle runs (Backdrop)
- *     music: 'street'|'stars'|null,   // on every switch the core calls Sound.setPlace(music)
+ *     music: 'street'|'bakery'|'stars'|null,   // on every switch the core calls Sound.setPlace(music)
  *     enter(args), exit(), update(dt), render(g),
  *     pointer(type, p),      // type 'down'|'move'|'up', p = {id, x, y, dx, dy}
  *     resize() }             // called before enter() when the size changed, and on resize
