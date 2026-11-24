@@ -5,7 +5,7 @@ const { test, before, after } = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
-const { startServer, launch, openGame, scene, tapPlay, playStars, hold } = require('./helpers');
+const { startServer, launch, openGame, scene, tapPlay, playStars, playBakery, hold } = require('./helpers');
 
 const OUT = process.env.RENDER_OUT || path.join(__dirname, 'out');
 const BUDGET_MS = 8;
@@ -125,6 +125,67 @@ test('street, the jar shows the total', () => open(390, 844, async (page) => {
   await page.waitForFunction(() => window.__bella.street.st.jarShow > 0, { timeout: 10000, polling: 30 });
   await hold(page, 700);                    // the row of stars has risen
   await shot(page, 'street-jar');
+}));
+
+// ---------------------------------------------------------------- the bakery
+async function tapButton(page, id) {
+  const b = await ev(page, (id) => window.__bella.bakery.buttons().find((q) => q.id === id), id);
+  assert.ok(b, 'button ' + id);
+  await page.mouse.click(b.x, b.y);
+}
+// Pick a cake, spread two creams and drop 10 toppings.
+async function decorate(page, shape) {
+  await tapButton(page, 'shape:' + shape);
+  await page.waitForFunction(() => window.__bella.bakery.st.mode === 'decorate', { timeout: 8000, polling: 50 });
+  const r = await ev(page, () => window.__bella.bakery.cakeRect());
+  const rub = async (cream, fy) => {
+    await tapButton(page, 'cream:' + cream);
+    await page.mouse.move(r.x + r.w * 0.1, r.y + r.h * fy);
+    await page.mouse.down();
+    for (let i = 1; i <= 16; i++) await page.mouse.move(r.x + r.w * (0.1 + 0.8 * i / 16), r.y + r.h * (fy + 0.05 * Math.sin(i)));
+    await page.mouse.up();
+  };
+  await rub('pink', 0.3);
+  await rub('mint', 0.42);
+  const kinds = ['strawberry', 'chocdrop', 'sprinkles', 'flower', 'star', 'candle'];
+  for (let i = 0; i < 10; i++) {
+    await tapButton(page, 'top:' + kinds[i % 6]);
+    await page.mouse.click(r.x + r.w * (0.25 + 0.5 * ((i * 0.37) % 1)), r.y + r.h * (0.3 + 0.3 * ((i * 0.61) % 1)));
+  }
+  await hold(page, 400);                    // the toppings have bounced in
+}
+
+test('bakery: pick, decorate and eat, within the render budget', () => open(390, 844, async (page) => {
+  await playBakery(page);
+  await hold(page, 400);
+  await shot(page, 'bakery-pick');
+  await decorate(page, 'round');
+  await frames(page, 125);
+  const cost = await ev(page, () => window.__bella.frameMs());
+  await shot(page, 'bakery-decorate');
+  console.log('bakery render ms/frame @390x844 DPR2 (decorating):', cost.toFixed(3));
+  fs.writeFileSync(path.join(OUT, 'bakery-cost.json'), JSON.stringify({ decorating: cost }, null, 2) + '\n');
+  await tapButton(page, 'bell');
+  await page.waitForFunction(() => window.__bella.bakery.st.mode === 'eat', { timeout: 8000, polling: 30 });
+  await hold(page, 1300);                   // half eaten, crumbs flying
+  await shot(page, 'bakery-eat');
+  assert.ok(cost > 0, 'bakery: frameMs() measured nothing');
+  assert.ok(cost < BUDGET_MS, 'bakery render ' + cost.toFixed(2) + ' ms >= ' + BUDGET_MS + ' ms');
+}));
+
+test('bakery, phone landscape, with saved cakes in the window', () => open(844, 390, async (page) => {
+  await ev(page, () => {
+    const tops = ['strawberry', 'chocdrop', 'sprinkles', 'flower', 'star', 'candle'], creams = ['pink', 'choc', 'lemon', 'mint', ''];
+    localStorage.setItem('bella.cakes', JSON.stringify([0, 1, 2, 3, 4, 5].map((i) => ({
+      s: ['round', 'heart', 'tall'][i % 3], c: creams[i % 5],
+      t: [0, 1, 2].map((j) => [tops[(i + j) % 6], 0.3 + 0.2 * j, 0.3 + 0.1 * ((i + j) % 3)])
+    }))));
+  });
+  await page.reload({ waitUntil: 'load' });
+  await page.waitForFunction(() => window.__bella && window.__bella.scene);
+  await playBakery(page);
+  await decorate(page, 'heart');
+  await shot(page, 'bakery-landscape');
 }));
 
 for (const s of [

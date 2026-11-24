@@ -10,8 +10,15 @@ A gentle browser game for small children. Bella the unicorn and Bongo the teddy 
 - On the street, **hold the left or right half** of the screen: Bella trots that way. Let go and she stops.
 - **Tap a place** and Bella walks there:
   - the **sky gate** (the cloud with the ladder and the star sign) opens the star game;
+  - the **bakery** (the pink mushroom house with the cake sign) opens: see below;
   - the **star jar** on the town square jiggles and shows all the stars collected so far, as stars;
-  - the houses, the bakery (cake sign) and the pond (octopus sign) are still closed: they just wiggle.
+  - the house and the pond (octopus sign) are still closed: they just wiggle.
+- In the **bakery**, a friend comes in (the husky, then Pagi the dog, the mouse and the lizard) and sits at the counter. A bubble shows the topping they wish for.
+  - **Tap a cake** (round, heart or tall). Bongo takes it out of the oven.
+  - **Rub the cake** to spread cream. Tap a cream pot to change the color.
+  - **Tap a topping**, then **tap the cake** to put it there: strawberries, chocolate drops, sprinkles, flowers, stars, candles.
+  - **Tap the bell** when the cake is ready (even a plain one). Bongo serves it, the friend eats it and gives 3 stars, or 5 with the wished topping on the cake. Then the next friend comes in.
+  - The last 6 cakes stand in the bakery window. The house button goes back to the street.
 - In the star game, **tap or hold** the screen: Bella flies up. **Let go**: she floats down gently.
 - Touch the **stars** to collect them. Clouds are harmless: Bella just bounces off them.
 - After about 15 stars, a muddy cloud splashes them both. **Rub the screen** to wash off the mud. When they are clean you get 5 bonus stars.
@@ -20,7 +27,7 @@ A gentle browser game for small children. Bella the unicorn and Bongo the teddy 
 - After a while (on the street and in the star game) the sky turns to sunset and a cozy night with a smiling moon, then back to day. The music changes from a happy tune to a lullaby.
 - The round button at the top right turns the sound on and off. Sound starts after the first tap.
 - Every star also goes into the jar on the street, which keeps the total from all the games.
-- The house button next to it goes back one step: from the star game to the street, from the street to the start page. Leaving full screen goes back to the start page.
+- The house button next to it goes back one step: from the star game or the bakery to the street, from the street to the start page. Leaving full screen goes back to the start page.
 
 ## Put it on a phone or tablet
 
@@ -82,7 +89,7 @@ Phones keep the game files for offline play (`sw.js`). After changing any file, 
 cd tests && npm install && npm test    # headless Chrome, a few minutes
 ```
 
-`tests/game.test.js` plays the game and checks the scenes, the street, touch, saving, offline play and that the live game and the preview stay separate (it needs a `main` worktree at `.worktrees/main`, or `MAIN_WORKTREE`). `tests/render.test.js` saves screenshots of every look to `tests/out/` and checks the drawing cost per frame.
+`tests/game.test.js` plays the game and checks the scenes, the street, the bakery, touch, saving, offline play and that the live game and the preview stay separate (it needs a `main` worktree at `.worktrees/main`, or `MAIN_WORKTREE`). `tests/render.test.js` saves screenshots of every look to `tests/out/` and checks the drawing cost per frame.
 
 ## Preview the next version
 
@@ -93,12 +100,15 @@ The new look is developed on branch `town`. `tools/publish-preview.sh <town-work
 - `index.html`, `style.css`: the page, painted-wall texture and the home and mute buttons
 - `js/art.js`: ink-and-pencil drawings in the style of the bedroom-wall mural (wall, grass and river, stars, clouds, moon, mud, rainbow, bubbles)
 - `js/art-town.js`: the street's drawings (houses, the sky gate, the bakery, the pond, trees, the star jar, the signs)
+- `js/art-bakery.js`: the bakery's drawings (the room, counter, oven, cakes, creams, toppings, buttons)
+- `js/friends.js`: the bakery's friends: the husky, Pagi, the mouse and the lizard
 - `js/audio.js`: sounds and music made in code, plus voice cues
 - `js/characters.js`: Bella and Bongo, drawn and animated
 - `js/core.js`: the shared core (screen, touch, buttons, saving, moving between places)
 - `js/backdrop.js`: the sky, hills and day/night cycle behind every place
 - `js/scenes/title.js`: the start page
 - `js/scenes/street.js`: the street, the town's hub
+- `js/scenes/bakery.js`: the bakery
 - `js/scenes/stars.js`: the star game
 - `manifest.webmanifest`, `sw.js`: home-screen install and offline play
 - `assets/icons/`: app and tab icons, drawn by `tools/icons.html` from the game art (open it with `?size=512`; `?pad=0.12` for the maskable icon, `?crop=head` for the tab icon)

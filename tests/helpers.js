@@ -75,4 +75,21 @@ async function playStars(page) {
   await wait(() => window.__bella.scene() === 'stars' && window.__bella.stars.st.mode === 'fly');
 }
 
-module.exports = { startServer, launch, openGame, scene, tapPlay, playStars, hold };
+// Start page -> street -> through the bakery door, until the first friend has sat
+// down and the shape buttons are up (mode 'pick'). Bella is put at the bakery door
+// first, so the test doesn't wait for the long walk (the street's fade-in must be
+// over, or Core.go() would be dropped).
+async function playBakery(page) {
+  const wait = (fn) => page.waitForFunction(fn, { timeout: 15000, polling: 50 });
+  await tapPlay(page);
+  await wait(() => window.__bella.scene() === 'street');
+  await hold(page, 600);
+  await page.evaluate(() => {
+    const b = window.__bella.street, p = b.places().find((q) => q.kind === 'bakery');
+    b.st.x = p.x;
+    b.enter('bakery');
+  });
+  await wait(() => window.__bella.scene() === 'bakery' && window.__bella.bakery.st.mode === 'pick');
+}
+
+module.exports = { startServer, launch, openGame, scene, tapPlay, playStars, playBakery, hold };
