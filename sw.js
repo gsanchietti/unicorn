@@ -3,7 +3,7 @@
  * pick up the new version (it applies on the next launch). */
 'use strict';
 
-var VERSION = 'bella-next-1';
+var VERSION = 'bella-next-2';
 var FILES = [
   './',
   'index.html',
