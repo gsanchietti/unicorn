@@ -41,8 +41,8 @@
  *   oven at x = max(0.1 W, 0.15 u) on the counter; Bongo stands at max(0.3 W, oven
  *   + 0.2 u) behind the counter, 0.34 u tall, feet 0.06 u below the counter top
  *   cake (0.3..0.36 u wide) centered at max(0.56 W, Bongo + 0.28 u), on the counter;
- *   the bell sprite 0.24 u left of it
- *   stool and friend (0.34 u tall) at W - max(0.14 W, 0.16 u), the friend sitting
+ *   the bell sprite 0.21 u left of it
+ *   stool and friend (0.34 u tall) at W - max(0.14 W, 0.14 u), the friend sitting
  *   0.1 u above the counter top; the cake is served at stool - 0.14 u, in front of
  *   the friend, and eaten from the friend's side
  *   the wish bubble's tail 0.04 u below the friend's head, 0.12 u left of it (moved
@@ -748,8 +748,8 @@
     L.ovenX = Math.max(0.1 * W, 0.15 * u);
     L.bongoX = Math.max(0.3 * W, L.ovenX + 0.2 * u);
     L.cakeX = Math.max(0.56 * W, L.bongoX + 0.28 * u);
-    L.bellX = L.cakeX - 0.24 * u;
-    L.stoolX = W - Math.max(0.14 * W, 0.16 * u);
+    L.bellX = L.cakeX - 0.21 * u;      // clear of Bongo's belly in portrait
+    L.stoolX = W - Math.max(0.14 * W, 0.14 * u);
     L.serveX = L.stoolX - 0.14 * u;
     L.friendH = 0.34 * u;
     L.bongoH = 0.34 * u;
