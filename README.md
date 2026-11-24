@@ -70,6 +70,7 @@ The voice cues use the browser's Italian voice. To use your own recordings, put 
 | `bravissima.mp3` | "Bravissima!" | milestones |
 | `laviamo.mp3` | "Laviamoli!" | the washing starts |
 | `puliti.mp3` | "Che puliti!" | they are clean |
+| `andiamo.mp3` | "Andiamo!" | Bella goes through the sky gate to the star game |
 
 ## Update the offline copy
 

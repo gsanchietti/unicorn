@@ -4,7 +4,10 @@
  * except the optional recorded voice cues assets/sounds/<key>.mp3.
  *
  * Public API: window.Sound = { init, isMuted, setMuted, toggleMute, star,
- *   bubble, boing, splat, fanfare, sparkle, say, suspend, resume }
+ *   bubble, boing, splat, fanfare, sparkle, clipClop, door, say, setMood,
+ *   getMood, setPlace, suspend, resume }
+ *   setPlace('street'|'stars') picks the DAY song of a place; setMood('day'|
+ *   'night') still switches to the shared lullaby. Both crossfade at a bar line.
  *
  * Graph:   sfxBus ----\
  *                      +--> master --> compressor(limiter) --> destination
@@ -254,10 +257,61 @@
     tick(ctx, dest, t, step % 2 === 1 ? 0.07 : 0.035);
   };
 
+  // ---- STREET song: 16-bar walking loop, 104 bpm, C major. Same marimba family as the
+  // day song, but calmer: oom-pah bass, soft off-beat chords, a woodblock tick on 1 and 3.
+  var STREET_BPM = 104, SEIGHTH = 60 / STREET_BPM / 2;
+  var S_A1 = [5, _, 7, _, 8, 7, 5, _], S_A2 = [6, _, 8, _, 9, 8, 6, _],
+      S_A3 = [8, _, 9, 8, 7, _, 5, _], S_A4 = [7, 5, 6, 7, 5, _, _, _],
+      S_B1 = [9, _, 8, 9, 10, _, 9, _], S_B2 = [8, _, 7, 8, 9, _, 8, _],
+      S_B3 = [7, 8, 7, 5, 4, _, 5, _], S_B4 = [5, _, 7, _, 5, _, _, _];
+  var STREET_MELODY = [S_A1, S_A2, S_A3, S_A4,  S_A1, S_A2, S_A3, S_B4,
+                       S_B1, S_B2, S_B3, S_A4,  S_A1, S_A2, S_A3, S_B4];
+  var STREET_ROOT = [-12, -19, -17, -12,  -12, -19, -17, -12,  -15, -19, -17, -12,  -12, -19, -17, -12];
+  // off-beat chord tone (pentatonic ladder index) per bar
+  var STREET_CHORD = [2, 3, 3, 2,  2, 3, 3, 2,  1, 3, 3, 2,  2, 3, 3, 2];
+
+  /** One eighth-note slot (0..127) of the 16-bar street loop. */
+  Synth.streetSlot = function (ctx, dest, t, slot, pass) {
+    var bar = Math.floor(slot / 8), step = slot % 8, alt = (pass % 2) === 1;
+    var m = STREET_MELODY[bar][step];
+    if (m >= 0) {
+      marimba(ctx, dest, t, semis(LADDER_SEMI(m)), (step % 4 === 0) ? 0.46 : 0.36);
+      if (alt && bar >= 8 && bar < 12) marimba(ctx, dest, t, semis(LADDER_SEMI(m + 2)), 0.14);
+    }
+    if (step === 0 || step === 4) {
+      var root = STREET_ROOT[bar] + (step === 4 ? 7 : 0);
+      tone(ctx, dest, t, { f: semis(root), peak: 0.42, attack: 0.008, dur: SEIGHTH * 3.2 });
+      tone(ctx, dest, t, { type: 'triangle', f: semis(root + 12), peak: 0.08, attack: 0.008, dur: SEIGHTH * 1.5, lp: 900 });
+      tone(ctx, dest, t, { f: 900, f2: 600, glide: 0.04, peak: 0.05, attack: 0.003, dur: 0.06 });   // soft wood tock
+    }
+    if (step === 2 || step === 6) {
+      marimba(ctx, dest, t, semis(LADDER_SEMI(STREET_CHORD[bar])), 0.13);
+      marimba(ctx, dest, t, semis(LADDER_SEMI(STREET_CHORD[bar] + 2)), 0.10);
+    }
+    tick(ctx, dest, t, step % 2 === 1 ? 0.04 : 0.02);
+  };
+
+  /** Soft two-tap hoof step, ~0.12 s. k alternates 0/1: second foot a little higher. */
+  Synth.clipClop = function (ctx, dest, t, k) {
+    var up = ((k | 0) % 2) ? 1.12 : 1, wob = 1 + (Math.random() - 0.5) * 0.06;
+    for (var i = 0; i < 2; i++) {
+      var tt = t + i * 0.065, f = (i ? 420 : 340) * up * wob;
+      tone(ctx, dest, tt, { f: f, f2: f * 0.6, glide: 0.04, peak: i ? 0.10 : 0.14, attack: 0.004, dur: 0.055, lp: 1800 });
+      tone(ctx, dest, tt, { type: 'triangle', f: f * 2.4, peak: 0.025, attack: 0.003, dur: 0.03 });
+    }
+  };
+
+  /** Small door chime: three bell notes, E5 G5 C6. */
+  Synth.door = function (ctx, dest, t) {
+    var notes = [pent(2), pent(3), pent(5)];
+    for (var i = 0; i < notes.length; i++) bell(ctx, dest, t + i * 0.17, notes[i] * (i === 2 ? 2 : 1), 0.2, i === 2 ? 0.8 : 0.5);
+  };
+
   Synth.musicSlot = Synth.nightSlot;   // backwards-compatible name
   var SONGS = {
     night: { slots: 64, step: EIGHTH, fn: Synth.nightSlot, gain: 1 },
-    day:   { slots: 128, step: DEIGHTH, fn: Synth.daySlot, gain: 0.7 }
+    day:   { slots: 128, step: DEIGHTH, fn: Synth.daySlot, gain: 0.7 },
+    street: { slots: 128, step: SEIGHTH, fn: Synth.streetSlot, gain: 0.7 }
   };
   var XFADE = 3;   // seconds, mood crossfade
 
@@ -265,8 +319,10 @@
   var ctx = null, master = null, sfxBus = null, musicBus = null, comp = null;
   var muted = false, suspended = false, musicStarted = false, unlockedSpeech = false;
   var musicTimer = null, nextSlotTime = 0, slotCounter = 0;
-  var mood = 'day', curMood = 'day', pendingMood = null, songBus = {};
-  var lastBubble = 0;
+  var mood = 'day', place = 'stars', curMood = 'day', pendingMood = null, songBus = {};
+  // curMood / pendingMood hold a SONG key: 'day', 'street' or 'night'.
+  function wantSong() { return mood === 'night' ? 'night' : (place === 'street' ? 'street' : 'day'); }
+  var lastBubble = 0, stepFlip = false;
 
   try {
     var saved = window.localStorage.getItem(MUTE_KEY);
@@ -289,8 +345,8 @@
       musicBus = ctx.createGain(); musicBus.gain.value = LEVELS.music;
       sfxBus.connect(master); musicBus.connect(master);
       // one sub-bus per song, so moods can be crossfaded under the shared (ducked) musicBus
-      curMood = mood; pendingMood = null;
-      ['day', 'night'].forEach(function (k) {
+      curMood = wantSong(); pendingMood = null;
+      ['day', 'street', 'night'].forEach(function (k) {
         songBus[k] = ctx.createGain();
         songBus[k].gain.value = (k === curMood) ? SONGS[k].gain : 0;
         songBus[k].connect(musicBus);
@@ -307,6 +363,15 @@
       param.setValueAtTime(param.value, t);
       param.linearRampToValueAtTime(value, t + secs);
     } catch (e) { /* ignore */ }
+  }
+
+  /** Move to the wanted song: at the next bar line if music runs, else at once. */
+  function applySong() {
+    if (!ctx) return;                                  // before init(): remembered, used at start
+    var w = wantSong();
+    if (musicTimer) { pendingMood = (w !== curMood) ? w : null; return; }
+    songBus[curMood].gain.value = 0; songBus[w].gain.value = SONGS[w].gain;
+    curMood = w; pendingMood = null; slotCounter = 0;
   }
 
   // ---- music scheduler (lookahead): setInterval + AudioContext time
@@ -339,7 +404,7 @@
   }
 
   // ---- speech / recorded voice
-  var VOICE_TEXT = { via: 'Si vola!', bravissima: 'Bravissima!', laviamo: 'Laviamoli!', puliti: 'Che puliti!' };
+  var VOICE_TEXT = { via: 'Si vola!', bravissima: 'Bravissima!', laviamo: 'Laviamoli!', puliti: 'Che puliti!', andiamo: 'Andiamo!' };
   // Recorded voice files. Add a key here after dropping assets/sounds/<key>.mp3,
   // e.g. ['bravissima', 'via']. Keys not listed use the browser's Italian voice,
   // so nothing is requested for missing files.
@@ -443,14 +508,19 @@
         if (m !== 'day' && m !== 'night') return;
         if (m === mood) return;
         mood = m;
-        if (!ctx) return;                               // before init(): remembered, used at start
-        if (musicTimer) { pendingMood = (m !== curMood) ? m : null; return; }
-        // music not running (not started / suspended): switch instantly
-        songBus[curMood].gain.value = 0; songBus[m].gain.value = SONGS[m].gain;
-        curMood = m; pendingMood = null; slotCounter = 0;
+        applySong();
       } catch (e) { /* ignore */ }
     },
     getMood: function () { return mood; },
+    /** 'street' or 'stars': which day song plays. Night stays the shared lullaby. */
+    setPlace: function (p) {
+      try {
+        if (p !== 'street' && p !== 'stars') return;
+        if (p === place) return;
+        place = p;
+        applySong();
+      } catch (e) { /* ignore */ }
+    },
 
     star: function (n) { playSfx(Synth.star, n || 0); },
     bubble: function () {
@@ -463,6 +533,8 @@
     splat: function () { playSfx(Synth.splat); },
     fanfare: function () { playSfx(Synth.fanfare); },
     sparkle: function () { playSfx(Synth.sparkle); },
+    clipClop: function () { stepFlip = !stepFlip; playSfx(Synth.clipClop, stepFlip ? 1 : 0); },
+    door: function () { playSfx(Synth.door); },
 
     say: function (key) {
       try {
@@ -506,7 +578,8 @@
     },
 
     // test hooks (offline rendering / auditioning); not part of the game contract
-    _synth: Synth, _levels: LEVELS, _eighth: EIGHTH, _dayEighth: DEIGHTH, _songs: SONGS
+    _synth: Synth, _levels: LEVELS, _eighth: EIGHTH, _dayEighth: DEIGHTH, _songs: SONGS,
+    _song: function () { return curMood; }, _voiceText: VOICE_TEXT
   };
 
   window.Sound = Sound;
