@@ -195,6 +195,15 @@ The finished cakes appear small in the bakery window, the last 6. It's optional,
   - The total is never shown as a number.
 - **Bubble bumping:** in the pond, and also in the washing step of the star game.
 
+## Changes after the step 1 preview (owner, 2026-11-24)
+
+The owner approved the new look and asked for these before step 2:
+
+- **Bella's tail** looks like a horse's tail: long flowing hair from the dock, not a pom-pom. It keeps its two colors (pink and lilac-white).
+- **Bella's mane** sits on the neck without gaps. Today it looks a little detached.
+- **The mud cloud can be avoided.** It flies in at its own height and no longer follows Bella. If she flies around it, it drifts away and comes back a few stars later. Hitting it still leads to the wash, as before.
+- **Levels in the star game.** Each full big star in the score bar (every 10 stars) is a new level, and the game gets a little quicker: the world moves 10% faster per level, capped at 1.8x. Bella's up and down control does not change. Every new game starts at level 1. This replaces "unchanged in rules" in Goals for the star game.
+
 ## Delivery order
 
 **The current game stays live and unchanged until the new world is ready** (owner's decision). The work happens on a `town` branch, and `main` (the live game at https://gsanchietti.github.io/unicorn/) isn't touched.
