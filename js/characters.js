@@ -268,71 +268,147 @@
   }
 
   // ============================================================ BELLA ====
-  // Short ink curls where one round tuft tucks behind the next, as on the
-  // mural's clouds: for each circle, a short arc starting where its edge
-  // dives under an earlier circle.
-  function tuftCurls(g, cs, w, len) {
-    var N = 40, i, j, k;
-    function under(i, a) {
-      var x = cs[i][0] + Math.cos(a) * cs[i][2], y = cs[i][1] + Math.sin(a) * cs[i][2];
-      for (j = 0; j < i; j++) if (Math.hypot(x - cs[j][0], y - cs[j][1]) < cs[j][2] - 0.5) return true;
-      return false;
-    }
-    Art.ink(g, w);
-    for (i = 1; i < cs.length; i++) {
-      var prev = under(i, 0);
-      for (k = 1; k <= N; k++) {
-        var a = k / N * TAU, cur = under(i, a);
-        if (cur && !prev) { g.beginPath(); g.arc(cs[i][0], cs[i][1], cs[i][2], a - TAU / N, a + len); g.stroke(); }
-        prev = cur;
-      }
-    }
+  // ---- hair (mane, tail): bunches of long locks.
+  // One lock = [x0,y0, x1,y1, x2,y2, x3,y3, w0, w1]: a cubic spine from the
+  // root to the tip, half-width w0 at the root swelling to w1, and a soft
+  // round tip. Returns the outline as a clockwise polygon.
+  function lockSpine(L, t) {
+    var u = 1 - t, a = u * u * u, b = 3 * u * u * t, c = 3 * u * t * t, d = t * t * t;
+    var x = a * L[0] + b * L[2] + c * L[4] + d * L[6], y = a * L[1] + b * L[3] + c * L[5] + d * L[7];
+    var dx = 3 * u * u * (L[2] - L[0]) + 6 * u * t * (L[4] - L[2]) + 3 * t * t * (L[6] - L[4]);
+    var dy = 3 * u * u * (L[3] - L[1]) + 6 * u * t * (L[5] - L[3]) + 3 * t * t * (L[7] - L[5]);
+    var l = Math.sqrt(dx * dx + dy * dy) || 1;
+    return [x, y, dy / l, -dx / l];
   }
-
-  // Fluffy mass made of circles (mane, tail): flat pencil fill, a few hair
-  // strands, one ink line around the whole bunch.
-  function fluff(g, cs, base, deep, light, seed, strands) {
+  function lockWidth(L, t) {
+    if (!L[10]) {                           // share of the length taken by the round tip
+      var len = (Math.hypot(L[6] - L[0], L[7] - L[1]) + Math.hypot(L[2] - L[0], L[3] - L[1]) +
+        Math.hypot(L[4] - L[2], L[5] - L[3]) + Math.hypot(L[6] - L[4], L[7] - L[5])) / 2;
+      L[10] = Math.min(0.4, 1.15 * L[9] / len);
+    }
+    var w = L[8] + (L[9] - L[8]) * smoothstep(t / 0.6), a = 1 - L[10];
+    if (t > a) { var q = (t - a) / L[10]; w *= Math.sqrt(Math.max(0, 1 - q * q)); }
+    return w;
+  }
+  function lockPoly(L) {
+    var N = 40, l = [], r = [], i;
+    for (i = 0; i <= N; i++) {
+      var t = 1 - (1 - i / N) * (1 - i / N), p = lockSpine(L, t), w = lockWidth(L, t);
+      l.push([p[0] + p[2] * w, p[1] + p[3] * w]);
+      r.push([p[0] - p[2] * w, p[1] - p[3] * w]);
+    }
+    r.reverse(); r.shift();                  // the tip is one point
+    return clockwise(l.concat(r));
+  }
+  function polyPath(g, pts, from, to) {     // sub-path through pts[from..to] (closed when no range)
+    var open = from !== undefined, i;
+    from = from || 0; to = to === undefined ? pts.length - 1 : to;
+    g.moveTo(pts[from][0], pts[from][1]);
+    for (i = from + 1; i <= to; i++) g.lineTo(pts[i][0], pts[i][1]);
+    if (!open) g.closePath();
+  }
+  // A bunch of locks, listed back to front: flat pencil fill, a few hair
+  // strands along each lock, an ink line down the sides and round the tip of
+  // every lock (hidden where a nearer lock lies over it), and one ink line
+  // around the whole bunch. The roots carry no inner lines: there the locks
+  // melt into one mass.
+  function hair(g, locks, base, deep, light, seed, strands) {
     layer(g, function (g) {
-      var rnd = mulberry(seed), i;
-      function path() { circlesPath(g, cs); }
+      var rnd = mulberry(seed), polys = locks.map(lockPoly), i, k;
+      function path() { g.beginPath(); for (var q = 0; q < polys.length; q++) polyPath(g, polys[q]); }
       path();
       g.fillStyle = base; g.fill();
       g.save();
       g.clip();
       g.lineCap = 'round';
       g.globalAlpha = 0.6;
-      for (i = 0; i < (strands || 16); i++) {
-        var c = cs[Math.floor(rnd() * cs.length)];
-        var a = rnd() * TAU, d = rnd() * c[2] * 0.8;
-        var x = c[0] + Math.cos(a) * d, y = c[1] + Math.sin(a) * d;
-        g.beginPath();
-        g.moveTo(x, y);
-        g.quadraticCurveTo(x - 8 + rnd() * 6, y + 12 + rnd() * 8, x - 4 + rnd() * 14, y + 26 + rnd() * 14);
-        g.lineWidth = 2.2 + rnd() * 1.8;
-        g.strokeStyle = rnd() < 0.5 ? light : deep;
-        g.stroke();
+      for (i = 0; i < locks.length; i++) {
+        for (k = 0; k < (strands || 2); k++) {
+          var o = (rnd() - 0.5) * 1.2, t0 = 0.12 + rnd() * 0.3, t1 = t0 + 0.25 + rnd() * 0.3, j;
+          g.beginPath();
+          for (j = 0; j <= 8; j++) {
+            var t = t0 + (t1 - t0) * j / 8, p = lockSpine(locks[i], t), w = lockWidth(locks[i], t) * o;
+            if (j) g.lineTo(p[0] + p[2] * w, p[1] + p[3] * w); else g.moveTo(p[0] + p[2] * w, p[1] + p[3] * w);
+          }
+          g.lineWidth = 2 + rnd() * 1.6;
+          g.strokeStyle = rnd() < 0.5 ? light : deep;
+          g.stroke();
+        }
       }
       g.restore();
       paleEdge(g, path, 5, 0.3);
       grain(g, deep, seed);
-      tuftCurls(g, cs, LI * 0.9, 0.75);
+      // inner ink on its own sheet, so each lock can rub out the lines it covers
+      var ic = cv(g.canvas.width, g.canvas.height), ig = ic.getContext('2d');
+      ig.setTransform(g.getTransform());
+      for (i = 0; i < polys.length; i++) {
+        var n = polys[i].length, cut = Math.round(n * 0.1);
+        ig.globalCompositeOperation = 'destination-out';
+        ig.beginPath(); polyPath(ig, polys[i]); ig.fill();
+        Art.ink(ig, LI * 0.5); ig.stroke();
+        ig.globalCompositeOperation = 'source-over';
+        Art.ink(ig, LI * 0.75);
+        ig.beginPath(); polyPath(ig, polys[i], cut, n - cut); ig.stroke();
+      }
+      g.save();
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      g.drawImage(ic, 0, 0);
+      g.restore();
       inkAround(g, path, LW, seed);
     });
   }
 
-  function drawMane(g) {
-    fluff(g, [[480, 72, 15], [458, 82, 20], [436, 100, 24], [417, 125, 26], [404, 154, 26], [398, 184, 23],
-      [402, 210, 17], [410, 228, 11]], C.mane, C.maneDeep, C.maneHi, 5);
+  // Mane: short locks rooted INSIDE the neck all along its crest, from the
+  // poll (behind the ear) down to the withers, each one sweeping back and
+  // hanging down over the next. The sprite is drawn under the neck and turns
+  // with it around the same pivot, so no gap can open at the crest.
+  var CREST = [[534, 58], [502, 63], [472, 80], [444, 106], [423, 138], [409, 172], [402, 205], [401, 236]];
+  function crestAt(s) {                     // point at arc length s + unit tangent (toward the withers)
+    for (var i = 0; i < CREST.length - 1; i++) {
+      var a = CREST[i], b = CREST[i + 1], l = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      if (s <= l || i === CREST.length - 2) {
+        var p = CREST[Math.max(0, i - 1)], q = CREST[Math.min(CREST.length - 1, i + 2)], f = s / l;
+        var tx = (b[0] - a[0]) / l * 0.6 + (q[0] - p[0]) / Math.hypot(q[0] - p[0], q[1] - p[1]) * 0.4;
+        var ty = (b[1] - a[1]) / l * 0.6 + (q[1] - p[1]) / Math.hypot(q[0] - p[0], q[1] - p[1]) * 0.4;
+        var tl = Math.hypot(tx, ty);
+        return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, tx / tl, ty / tl];
+      }
+      s -= l;
+    }
   }
-  // white-lilac tinsel cloud of the tail
-  function drawTailClear(g) {
-    fluff(g, [[92, 300, 52], [66, 338, 40], [108, 256, 34], [84, 378, 36], [122, 372, 36], [52, 298, 26], [128, 292, 36], [134, 240, 20]],
-      '#f3eaf8', '#b49ad2', '#ffffff', 9, 22);
-  }
-  function drawTailPink(g) {
-    fluff(g, [[140, 286, 22], [126, 318, 27], [124, 354, 27], [116, 386, 20], [146, 262, 15],
-      [104, 340, 20], [118, 296, 18]], C.mane, C.maneDeep, C.maneHi, 7, 18);
-  }
+  var MANE = (function () {
+    var out = [], n = 7, i;
+    for (i = n - 1; i >= 0; i--) {          // withers first: each lock lies over the one below
+      var s = 8 + i * 33, c = crestAt(s), dx = c[2], dy = c[3], nx = -dy, ny = dx;   // n = outward (back of the neck)
+      var k = i > 4 ? 1 - (i - 4) * 0.14 : i === 0 ? 0.88 : 1, wob = (i % 2 ? 1 : -1) * 3;
+      out.push([
+        c[0] - nx * 18, c[1] - ny * 18,
+        c[0] + nx * 16 * k - dx * 10, c[1] + ny * 16 * k - dy * 10,
+        c[0] + nx * (36 + wob) * k + dx * 24 * k, c[1] + ny * (36 + wob) * k + dy * 24 * k,
+        c[0] + nx * (20 + wob) * k + dx * (62 - wob) * k, c[1] + ny * (20 + wob) * k + dy * (62 - wob) * k,
+        14 * k, 17.5 * k]);
+    }
+    return out;
+  })();
+  function drawMane(g) { hair(g, MANE, C.mane, C.maneDeep, C.maneHi, 5, 2); }
+
+  // Tail: a horse's tail in two colors. It leaves the dock high on the rump,
+  // arches out and falls in long locks with round tips. Three bunches turn
+  // around the dock, each a little differently, so the tail fans as it swings:
+  // lilac-white locks behind the body, pink locks over the rump, and one slim
+  // lilac-white lock on top.
+  var DOCK = [150, 274];
+  var TAIL_BACK = [
+    [154, 280, 98, 246, 52, 380, 66, 500, 12, 25],
+    [154, 280, 112, 256, 80, 410, 100, 540, 12, 25],
+    [154, 280, 134, 270, 128, 410, 146, 528, 11, 21]];
+  var TAIL_PINK = [
+    [151, 273, 106, 250, 66, 390, 84, 522, 11, 23],
+    [151, 273, 122, 260, 100, 400, 122, 546, 11, 23]];
+  var TAIL_TOP = [[150, 272, 114, 254, 84, 380, 100, 496, 7, 13]];
+  function drawTailClear(g) { hair(g, TAIL_BACK, '#f3eaf8', '#b49ad2', '#ffffff', 9, 3); }
+  function drawTailPink(g) { hair(g, TAIL_PINK, C.mane, C.maneDeep, C.maneHi, 7, 3); }
+  function drawTailTop(g) { hair(g, TAIL_TOP, '#f3eaf8', '#b49ad2', '#ffffff', 11, 2); }
 
   // Bella's torso (traced): rounded rump on the left, deep chest on the right
   var BODY = [[190, 251], [158, 258], [135, 281], [123, 320], [127, 365], [148, 394], [200, 404], [270, 403],
@@ -760,9 +836,10 @@
 
   function build(ppu) {
     var P = {}, i;
-    P.tailClear = sPart(ppu, [150, 290], [20, 212, 170, 420], drawTailClear);
-    P.tailPink = sPart(ppu, [150, 290], [80, 240, 172, 412], drawTailPink);
-    P.mane = sPart(ppu, [440, 230], [366, 40, 520, 246], drawMane);
+    P.tailClear = sPart(ppu, DOCK, [24, 240, 176, 570], drawTailClear);
+    P.tailPink = sPart(ppu, DOCK, [50, 244, 170, 572], drawTailPink);
+    P.tailTop = sPart(ppu, DOCK, [70, 248, 166, 516], drawTailTop);
+    P.mane = sPart(ppu, NECK_PNG, [356, 24, 556, 300], drawMane);
     P.body = sPart(ppu, [330, 330], [116, 226, 546, 412], drawBody);
     P.bfly = sPart(ppu, BF, [404, 262, 524, 382], drawButterfly);
     P.neck = sPart(ppu, NECK_PNG, [392, 26, 630, 290], drawNeckHead);
@@ -989,16 +1066,24 @@
 
     // --- sprites in z order: [sprite, x, y, rot]
     var items = [];
-    var ta = -0.12 * run + (0.05 + 0.14 * run) * Math.sin(ph - 0.8) + 0.04 * Math.sin(t * 1.4);
-    var ta2 = -0.14 * run + (0.06 + 0.16 * run) * Math.sin(ph - 1.3) + 0.05 * Math.sin(t * 1.3 + 1);
-    items.push([P.tailClear.s, P.tailClear.x, P.tailClear.y + by, ta2]);
+    // tail: turns around the dock (+ = lifted backward). It streams out and
+    // swings once per stride in the gallop and sways a little at rest; the
+    // bunch behind lifts the most, so the tail fans open as it flies.
+    var tw = Math.sin(ph - 0.9), ts = Math.sin(t * 1.3);
+    var taB = run * (0.2 + 0.1 * tw) + 0.03 * ts;
+    var taP = run * (0.13 + 0.09 * Math.sin(ph - 1.3)) + 0.03 * Math.sin(t * 1.3 - 0.5);
+    var taT = run * (0.08 + 0.09 * Math.sin(ph - 1.7)) + 0.03 * Math.sin(t * 1.3 - 0.9);
+    items.push([P.tailClear.s, P.tailClear.x, P.tailClear.y + by, taB]);
     var bodyItem = [P.body.s, P.body.x, P.body.y + by, 0];
     items.push(bodyItem);
 
+    // the mane shares the neck's pivot and angle (plus a breath of sway: its
+    // roots lie well inside the neck, so the crest never opens)
     var na = -look * 0.08 + run * (0.05 * Math.sin(ph + 1.4) + 0.03) + 0.014 * Math.sin(t * 1.3 + 0.5) - happy * 0.03;
-    var ma = na * 0.8 + (0.03 + 0.1 * run) * Math.sin(ph - 0.6) + 0.03 * Math.sin(t * 1.7);
-    items.push([P.mane.s, P.mane.x, P.mane.y + by, ma]);
-    items.push([P.tailPink.s, P.tailPink.x, P.tailPink.y + by, ta]);
+    var ma = na + 0.018 * run * Math.sin(ph - 0.6) + 0.008 * Math.sin(t * 1.7);
+    items.push([P.mane.s, PN[0], PN[1] + by, ma]);
+    items.push([P.tailPink.s, P.tailPink.x, P.tailPink.y + by, taP]);
+    items.push([P.tailTop.s, P.tailTop.x, P.tailTop.y + by, taT]);
 
     var nx = PN[0], ny = PN[1] + by;
     var neckItem = [P.neck.s, nx, ny, na];
