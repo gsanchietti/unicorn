@@ -59,6 +59,8 @@ test('flying in day, sunset and night, within the render budget', () => open(390
     await hold(page, 2600);                 // stars and clouds on screen
     await frames(page, 125);
     cost[phase] = await ev(page, () => window.__bella.frameMs());
+    await ev(page, (p) => window.__bella.setTime(p), phase);   // the clock ran on: back to mid-phase
+    await frames(page, 3);
     await shot(page, 'fly-' + phase);
   }
   console.log('render ms/frame @390x844 DPR2:', JSON.stringify(cost));
@@ -81,8 +83,10 @@ test('flying, phone landscape', () => open(844, 390, async (page) => {
 test('wash', () => open(390, 844, async (page) => {
   await startFlying(page);
   await ev(page, () => { window.__bella.stars.st.sinceWash = 15; });
-  await page.waitForFunction(() => !!window.__bella.stars.st.mud, { timeout: 8000, polling: 30 });
-  await hold(page, 350);
+  await page.waitForFunction(() => {
+    const m = window.__bella.stars.st.mud;
+    return !!m && m.x < innerWidth * 0.8;         // the mud cloud has flown into view
+  }, { timeout: 8000, polling: 30 });
   await shot(page, 'mud-cloud');
   await page.waitForFunction(() => window.__bella.stars.st.mode === 'wash', { timeout: 12000, polling: 50 });
   await hold(page, 2200);                   // the sponge hint is up
