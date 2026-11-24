@@ -53,7 +53,7 @@
   // Decorations: layer 0 behind the places, 2 in front of them (Bella is in front of all).
   var DECOR = [
     { kind: 'bush', f: 0.02, layer: 2 }, { kind: 'tree', f: 0.055, layer: 0 },
-    { kind: 'flowers', f: 0.045, layer: 2 }, { kind: 'fox', f: 0.21, layer: 2, life: 'fox' },
+    { kind: 'flowers', f: 0.045, layer: 2 }, { kind: 'fox', f: 0.16, layer: 2, life: 'fox' },
     { kind: 'tree', f: 0.25, layer: 0 }, { kind: 'flowers', f: 0.39, layer: 2 },
     { kind: 'tree', f: 0.42, layer: 0 }, { kind: 'clothesline', f: 0.59, layer: 0, life: 'flap' },
     { kind: 'bush', f: 0.765, layer: 2 }, { kind: 'tree', f: 0.79, layer: 0 },
@@ -117,7 +117,8 @@
   }
 
   function heroScale() { return L.heroH / CHR.H; }
-  // Bella's box on screen ({x, y, h}: center and height), as the start page passes it
+  // Bella's box on screen as drawn here ({x, y, h}: center and height), the
+  // shape the start page passes to the next scene
   function heroBox() {
     var k = heroScale();
     return { x: st.x - st.camX, y: L.gy - (FOOT - CHR.H / 2) * k, h: L.heroH };
@@ -366,11 +367,16 @@
     var frac = L.ww > 1 ? st.x / L.ww : START_F;
     L.ww = worldW();
     L.gy = groundY();
-    L.heroH = Math.min(H * 0.28, W * 0.55);   // as on the start page
-    // the town's size unit: fits under the buttons in landscape, and keeps the
-    // houses at most about twice Bella's height on wide screens
-    L.u = Math.min(M, 0.8 * H, 2.2 * L.heroH);
-    L.speed = Math.max(0.35 * W, 0.5 * M);
+    // Bella's height on the street: a little taller than on the start page in
+    // landscape. She is still drawn from the flying-scale cache (L.ppu below).
+    L.heroH = Math.min(H * 0.34, W * 0.55);
+    // The town's size unit: at most M, the houses at most about twice Bella's
+    // height, and the tallest piece (1.36 u, see js/art-town.js) ends 0.18 H
+    // below the top, so nothing passes under the #home / #mute buttons.
+    L.u = Math.min(M, 0.8 * H, 2.0 * L.heroH, (L.gy - 0.18 * H) / 1.36);
+    // The trot follows the screen, but never faster than 1.2 x Bella's height
+    // per second, so the legs keep a calm cadence on wide phones.
+    L.speed = Math.min(Math.max(0.35 * W, 0.5 * M), 1.2 * L.heroH);
     // the star game's flying scale, as js/scenes/title.js: no third Characters scale
     L.ppu = Math.min(H * 0.42, W * 0.52) / CHR.H * DPR;
     CHR.prerender(L.ppu);
