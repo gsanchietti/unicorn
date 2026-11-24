@@ -3,7 +3,7 @@
  * pick up the new version (it applies on the next launch). */
 'use strict';
 
-var VERSION = 'bella-v3';
+var VERSION = 'bella-v4';
 var FILES = [
   './',
   'index.html',
@@ -28,15 +28,18 @@ self.addEventListener('install', function (e) {
   }).then(function () { return self.skipWaiting(); }));
 });
 
+// Only delete our own old caches: the live game and the preview share one origin.
 self.addEventListener('activate', function (e) {
   e.waitUntil(caches.keys().then(function (keys) {
-    return Promise.all(keys.filter(function (k) { return k !== VERSION; }).map(function (k) { return caches.delete(k); }));
+    return Promise.all(keys.filter(function (k) { return k !== VERSION && k.indexOf('bella-v') === 0; }).map(function (k) { return caches.delete(k); }));
   }).then(function () { return self.clients.claim(); }));
 });
 
 // Cache first; fall back to the network (and to the start page when offline).
 self.addEventListener('fetch', function (e) {
   if (e.request.method !== 'GET') return;
+  // The preview in next/ has its own service worker and cache: leave its requests alone.
+  if (new URL(e.request.url).pathname.indexOf('/next/') !== -1) return;
   e.respondWith(caches.match(e.request, { ignoreSearch: true }).then(function (hit) {
     return hit || fetch(e.request).catch(function () {
       if (e.request.mode === 'navigate') return caches.match('./');
