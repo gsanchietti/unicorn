@@ -3,7 +3,9 @@
  * Registers the 'stars' scene with window.Core (home: 'title', day/night cycle on).
  * enter({hero: {x, y, h}}) starts a new game, flying in from that spot.
  * Uses window.Art, window.Characters, window.Backdrop; audio only through Core.snd.
- * Adds window.__bella.stars = {st, pose, addPoints, cleanAll, getDirty} for the tests.
+ * Adds window.__bella.stars = {st, pose, addPoints, cleanAll, getDirty, speedK} for the tests.
+ * st.level = floor(score / 10) + 1; every level the world is 10% quicker (speedK, max 1.8).
+ * The mud cloud {x, y, ph, vy} flies straight at a random height; only a touch hits.
  */
 (function () {
   'use strict';
@@ -26,7 +28,7 @@
   // held: a finger is down now; hasHeld: held at least once this game (hides the tap hint)
   var st = {
     mode: 'off', t: 0, mt: 0,               // mt = time in current mode
-    score: 0, best: 0, sinceWash: 0, held: false, hasHeld: false,
+    score: 0, level: 1, best: 0, sinceWash: 0, held: false, hasHeld: false,
     sf: 0.3, scroll: 0,
     stars: [], clouds: [], mud: null, parts: [], bubbles: [], bonus: [],
     splotches: null, dirtyNeed: false, idle: 0, popT: 0,
@@ -61,6 +63,7 @@
   function heroAspect() { return HW / HC; }
   function flyX() { return W * (W < H ? 0.3 : 0.26); }
   function baseSpeed() { return Math.max(0.26 * W, 0.18 * H); }
+  function speedK() { return Math.min(1 + 0.1 * (st.level - 1), 1.8); }
   function hillH() { return Backdrop.hillH(); }
 
   var bar = null, barKey = '';
@@ -308,6 +311,8 @@
     for (var k = 0; k < n; k++) st.slotPop[(old + k) % 10] = 0;
     st.score += n;
     if (Math.floor(st.score / 10) > Math.floor(old / 10)) st.bigPop = 0;
+    var lv = Math.floor(st.score / 10) + 1;
+    if (lv > st.level) { st.level = lv; levelUp(); } else st.level = lv;
     if (st.score > st.best) { st.best = st.score; saveBest(); }
     if (milestoneIn(old, st.score)) milestone();
   }
@@ -318,6 +323,10 @@
   function starEvent() {
     st.fx.glow = 0.8; st.fx.wave = Math.max(st.fx.wave, 1.2);
     happyBlip(0.7, 0.7);
+  }
+  function levelUp() {
+    starEvent();
+    snd('sparkle');
   }
   function milestone() {
     st.fx.wave = Math.max(st.fx.wave, 2); happyBlip(1, 2);
@@ -348,7 +357,7 @@
     var h = st.hero;
     if (from) { h.x = from.x; h.y = from.y; h.h = from.h; }
     st.sf = sfTarget.title;
-    st.score = 0; st.sinceWash = 0; st.held = false; st.hasHeld = false;
+    st.score = 0; st.level = 1; st.sinceWash = 0; st.held = false; st.hasHeld = false;
     st.stars.length = 0; st.clouds.length = 0; st.mud = null;
     for (var i = 0; i < 10; i++) st.slotPop[i] = 9;
     st.bigPop = 9;
@@ -468,8 +477,10 @@
     st.clouds.push({ x: W + S.cloudW, y: rnd(l.top, l.bottom), spr: spr, sc: rnd(0.85, 1.1), cd: 0, sq: 0, drift: rnd(-0.02, 0.02) * M, ph: rnd(0, TAU) });
   }
   function spawnMud() {
-    var h = st.hero;
-    st.mud = { x: W + S.mudCloud.lw, y: h.y, ph: 0, passed: false };
+    var h = st.hero, l = heroLimits(), y = h.y, n = 0;
+    do { y = rnd(l.top, l.bottom); n++; } while (Math.abs(y - h.y) < 0.25 * H && n < 30);
+    if (Math.abs(y - h.y) < 0.25 * H) y = h.y > (l.top + l.bottom) / 2 ? l.top : l.bottom;
+    st.mud = { x: W + S.mudCloud.lw, y: y, ph: 0, vy: 0 };
   }
 
   function heroBody() {
@@ -512,7 +523,7 @@
   }
 
   function updateFly(dt) {
-    var h = st.hero, l = heroLimits(), spd = baseSpeed();
+    var h = st.hero, l = heroLimits(), spd = baseSpeed() * speedK();
     var hold = st.held;
     if (hold) st.hasHeld = true;
     st.noCtl = Math.max(0, st.noCtl - dt);
@@ -535,9 +546,9 @@
     // spawns
     if (!st.mud) {
       st.starT -= dt;
-      if (st.starT <= 0) { spawnStar(); st.starT = 1.2; }
+      if (st.starT <= 0) { spawnStar(); st.starT = 1.2 / speedK(); }
       st.cloudT -= dt;
-      if (st.cloudT <= 0) { spawnCloud(); st.cloudT = rnd(3, 4); }
+      if (st.cloudT <= 0) { spawnCloud(); st.cloudT = rnd(3, 4) / speedK(); }
     }
 
     var body = heroBody(), i, s;
@@ -578,9 +589,9 @@
     if (m) {
       m.x -= spd * 1.0 * dt;
       m.ph += dt;
-      m.y += (h.y - m.y) * Math.min(1, 3.2 * dt);
       var hitR = S.mudCloud.hitR || S.mudCloud.lw * 0.4;
-      if (Math.hypot(m.x - body.x, m.y - body.y) < body.r + hitR * 0.8 || m.x < h.x - h.h) mudHit();
+      if (Math.hypot(m.x - body.x, m.y - body.y) < body.r + hitR * 0.8) mudHit();
+      else if (m.x < -S.mudCloud.lw) { st.mud = null; st.sinceWash = 10; }
     }
   }
 
@@ -595,6 +606,7 @@
     st.t += dt; st.mt += dt;
     st.fade = 1;
     var mode = st.mode, h = st.hero, spd = baseSpeed();
+    if (mode === 'fly' || mode === 'toFly') spd *= speedK();
     st.sf += (sfTarget[mode] - st.sf) * Math.min(1, dt * 3);
     if (Math.abs(sfTarget[mode] - st.sf) < 0.003) st.sf = sfTarget[mode];
     st.scroll += spd * st.sf * dt;
@@ -831,6 +843,7 @@
   window.__bella.stars = {
     st: st, pose: pose,
     addPoints: function (n) { addPoints(n); },
+    speedK: speedK,
     getDirty: function () { return st.splotches ? st.splotches.map(function (s) { return s.amount; }) : []; },
     cleanAll: function () {
       if (!st.splotches) return;
