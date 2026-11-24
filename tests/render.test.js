@@ -188,6 +188,69 @@ test('bakery, phone landscape, with saved cakes in the window', () => open(844, 
   await shot(page, 'bakery-landscape');
 }));
 
+// Bakery sheet: every Bakery sprite, the three cake bases with some cream, every
+// topping (as on the cake, and enlarged), every button face and the cream stamps,
+// on the wall color; then the room at a phone's two sizes.
+test('bakery sheet', () => open(390, 844, async (page) => {
+  const buildMs = await ev(page, () => {
+    const t0 = performance.now();
+    window.Bakery.build(390, 2);
+    window.Bakery.room(390, 844, false);
+    return performance.now() - t0;
+  });
+  console.log('Bakery.build(390, 2) + room ms:', buildMs.toFixed(0));
+  const url = await ev(page, () => {
+    const B = window.Bakery, U = 300, dpr = 2;
+    B.build(U, dpr);
+    const c = document.createElement('canvas');
+    c.width = 1700 * dpr; c.height = 1500 * dpr;
+    const g = c.getContext('2d');
+    g.scale(dpr, dpr);
+    g.fillStyle = '#f7f1e6'; g.fillRect(0, 0, 1700, 1500);
+    const put = (s, x, y, k) => g.drawImage(s.c, x - s.w * (k || 1) / 2, y - s.h * (k || 1), s.w * (k || 1), s.h * (k || 1));
+    // the sprites, twice their size
+    let x = 110;
+    for (const k of ['oven', 'stool', 'bell', 'wishBubble']) { const s = B.sprite(k); put(s, x + s.w, 240, 2); x += s.w * 2 + 30; }
+    B.TOPPINGS.forEach((k, i) => { const t = B.topping(k); g.drawImage(t.c, 900 + i * 120, 40, t.w * 4, t.h * 4); });
+    B.TOPPINGS.forEach((k, i) => { const t = B.topping(k); g.drawImage(t.c, 900 + i * 40, 200, t.w, t.h); });
+    B.CREAMS.forEach((k, i) => { const s = B.creamStamp(k); g.drawImage(s.c, 1200 + i * 80, 190, s.r * 6, s.r * 6); });
+    // the cakes: plain, and with cream stroked across and toppings
+    B.SHAPES.forEach((shape, i) => {
+      const b = B.cakeBase(shape);
+      g.drawImage(b.c, 30 + i * 260, 520 - b.h * 2, b.w * 2, b.h * 2);
+      const cc = document.createElement('canvas');
+      cc.width = b.c.width; cc.height = b.c.height;
+      const cg = cc.getContext('2d');
+      cg.drawImage(b.c, 0, 0);
+      cg.save(); b.clip(cg);
+      B.CREAMS.forEach((cr, j) => {
+        const st = B.creamStamp(cr), d = st.c.width;
+        for (let q = 0; q < 60; q++) {
+          const px = cc.width * (0.05 + 0.9 * q / 60), py = cc.height * (0.12 + j * 0.17 + 0.03 * Math.sin(q * 0.4));
+          cg.drawImage(st.c, px - d / 2, py - d / 2);
+        }
+      });
+      cg.restore();
+      const x0 = 830 + i * 280, y0 = 520 - b.h * 2;
+      g.drawImage(cc, x0, y0, b.w * 2, b.h * 2);
+      B.TOPPINGS.forEach((k, j) => { const t = B.topping(k); g.drawImage(t.c, x0 + b.w * 2 * (0.2 + 0.12 * j) - t.w, y0 + b.h * 2 * (0.25 + 0.08 * (j % 3)) - t.h, t.w * 2, t.h * 2); });
+    });
+    // the button faces, big and at the size of a phone's buttons
+    const ids = [].concat(B.SHAPES.map((k) => 'shape:' + k), B.CREAMS.map((k) => 'cream:' + k), B.TOPPINGS.map((k) => 'top:' + k), ['bell']);
+    ids.forEach((id, i) => { const ic = B.icon(id); g.drawImage(ic.c, 20 + i * 118, 560, 110, 110); });
+    ids.forEach((id, i) => { const ic = B.icon(id); g.drawImage(ic.c, 20 + i * 72, 690, 66, 66); });
+    // the counter (its top-left part) and the room in portrait and landscape
+    const ct = B.sprite('counter');
+    g.drawImage(ct.c, 0, 0, 700 * dpr, 300 * dpr, 20, 790, 700, 300);
+    B.build(390, dpr);
+    g.drawImage(B.room(390, 844, false), 760, 790, 320, 692);
+    B.build(351, dpr);
+    g.drawImage(B.room(844, 390, false), 1100, 790, 580, 268);
+    return c.toDataURL('image/png');
+  });
+  fs.writeFileSync(path.join(OUT, 'bakery-sheet.png'), Buffer.from(url.split(',')[1], 'base64'));
+}));
+
 for (const s of [
   { name: 'start-phone-portrait', w: 390, h: 844 },
   { name: 'start-phone-landscape', w: 844, h: 390 },
@@ -275,7 +338,7 @@ const POSES = [
   ...[0, 1, 2, 3, 4, 5, 6, 7].map((i) => ({ name: 'walk ' + i, pose: { t: 31 + i / 16, run: 0, walk: 1, stride: i / 16, face: 0 } }))
 ];
 
-test('character sheet, and Characters.draw under 1 ms', () => open(390, 844, async (page) => {
+test('character sheet, and Characters.draw and drawBongo under 1 ms', () => open(390, 844, async (page) => {
   // Cost first: 500 draws at the flying scale of this phone, legs galloping.
   // 5 draws per animation frame: in one tight loop Chrome stops to paint its
   // growing backlog inside the timed calls, which a game frame never does.
@@ -323,6 +386,126 @@ test('character sheet, and Characters.draw under 1 ms', () => open(390, 844, asy
   }, POSES);
   fs.writeFileSync(path.join(OUT, 'characters.png'), Buffer.from(url.split(',')[1], 'base64'));
 
+  // Bongo on his own: the cost of Characters.drawBongo at the bakery's size on
+  // this phone, then a sheet with his walk, carry and face frames.
+  const bcost = await ev(page, () => new Promise((done) => {
+    const C = window.Characters, dpr = Math.min(2, window.devicePixelRatio || 1);
+    const ppu = Math.min(innerHeight * 0.42, innerWidth * 0.52) / C.H * dpr;
+    const k = 0.34 * Math.min(innerWidth, 0.9 * innerHeight) / C.BONGO_H * dpr;
+    const c = document.createElement('canvas');
+    c.width = 400; c.height = 400;
+    const g = c.getContext('2d');
+    const pose = { t: 0, walk: 1, stride: 0, carry: 0, face: undefined };
+    const N = 500, PER = 5, WARM = 20;
+    let i = -WARM, sum = 0;
+    (function tick() {
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      g.clearRect(0, 0, 400, 400);
+      g.setTransform(k, 0, 0, k, 200, 380);
+      const t0 = performance.now();
+      for (let q = 0; q < PER; q++, i++) {
+        pose.t = 1 + i / 60; pose.stride = (i + 100) / 90; pose.carry = (i + 100) % 200 < 100 ? 1 : 0;
+        C.drawBongo(g, pose, ppu);
+      }
+      if (i > 0) sum += performance.now() - t0;
+      if (i >= N) done(sum / N); else requestAnimationFrame(tick);
+    })();
+  }));
+  console.log('Characters.drawBongo ms/call:', bcost.toFixed(3));
+  const burl = await ev(page, () => {
+    const C = window.Characters, dpr = 2;
+    const frames = [
+      { name: 'stand', pose: { t: 0.5, walk: 0, stride: 0, carry: 0, face: 0 } },
+      ...[0, 1, 2, 3, 4, 5].map((i) => ({ pose: { t: 3 + i / 10, walk: 1, stride: i / 12, carry: 0, face: 0 } })),
+      { pose: { t: 0.5, walk: 0, stride: 0, carry: 1, face: 0 } },
+      { pose: { t: 0.8, walk: 1, stride: 0.12, carry: 1, face: 0 } },
+      { pose: { t: 1.1, walk: 1, stride: 0.37, carry: 1, face: 0 } },
+      { pose: { t: 0.5, walk: 0, stride: 0, carry: 0, face: 0.5 } },
+      { pose: { t: 0.5, walk: 0, stride: 0, carry: 0, face: 1 } },
+      { pose: { t: 0.5, walk: 0, stride: 0, carry: 1, face: 1 } }
+    ];
+    const big = 420, small = 0.34 * 390, cw = 330;
+    const c = document.createElement('canvas');
+    c.width = cw * frames.length * dpr; c.height = (big + small + 120) * dpr;
+    const g = c.getContext('2d');
+    g.fillStyle = '#f7f1e6'; g.fillRect(0, 0, c.width, c.height);
+    // big: a scale of its own, to judge the drawing; the ground line is where his feet stand
+    g.strokeStyle = '#c9b9a0'; g.lineWidth = 2;
+    g.beginPath(); g.moveTo(0, (big + 40) * dpr); g.lineTo(c.width, (big + 40) * dpr); g.stroke();
+    frames.forEach((f, i) => {
+      const k = big / C.BONGO_H * dpr;
+      g.save(); g.translate((i + 0.5) * cw * dpr, (big + 40) * dpr); g.scale(k, k); C.drawBongo(g, f.pose, k); g.restore();
+    });
+    // small: as in the bakery on a phone, from the flying scale only (walking left: mirrored)
+    C.prerender(1); C.prerender(Math.min(844 * 0.42, 390 * 0.52) / C.H * dpr); C.prerender(0.2);
+    frames.forEach((f, i) => {
+      const k = small / C.BONGO_H * dpr;
+      g.save(); g.translate((i + 0.5) * cw * dpr, (big + small + 90) * dpr); g.scale(i % 5 === 4 ? -k : k, k); C.drawBongo(g, f.pose, 0.369); g.restore();
+    });
+    return c.toDataURL('image/png');
+  });
+  fs.writeFileSync(path.join(OUT, 'bongo.png'), Buffer.from(burl.split(',')[1], 'base64'));
+  cost.bongoMs = bcost;
+  fs.writeFileSync(path.join(OUT, 'characters-cost.json'), JSON.stringify(cost, null, 2) + '\n');
+  assert.ok(bcost > 0, 'the drawBongo cost measured nothing');
+  assert.ok(bcost < 1, 'Characters.drawBongo ' + bcost.toFixed(3) + ' ms >= 1 ms');
+
   assert.ok(cost.ms > 0, 'the draw cost measured nothing');
   assert.ok(cost.ms < 1, 'Characters.draw ' + cost.ms.toFixed(3) + ' ms >= 1 ms');
+}));
+
+// Friends sheet: each friend in each state at 3 phases, big, and the husky again
+// at the size it has on a phone. Also checks the cost of Friends.draw.
+test('friends sheet, and Friends.draw under 1 ms', () => open(390, 844, async (page) => {
+  const cost = await ev(page, () => new Promise((done) => {
+    const F = window.Friends, dpr = 2, h = 0.34 * 390;
+    F.build(h, dpr);
+    const c = document.createElement('canvas');
+    c.width = 400; c.height = 400;
+    const g = c.getContext('2d');
+    const states = ['walk', 'sit', 'eat', 'happy'], pose = { t: 0, state: 'sit', p: 0 };
+    const N = 500, PER = 5, WARM = 20;
+    let i = -WARM, sum = 0;
+    (function tick() {
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      g.clearRect(0, 0, 400, 400);
+      g.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const t0 = performance.now();
+      for (let k = 0; k < PER; k++, i++) {
+        pose.t = 1 + i / 60; pose.p = ((i + 100) % 60) / 60; pose.state = states[Math.floor((i + 100) / 25) % 4];
+        F.draw(g, 'husky', 100, 190, pose);
+      }
+      if (i > 0) sum += performance.now() - t0;
+      if (i >= N) done(sum / N); else requestAnimationFrame(tick);
+    })();
+  }));
+  console.log('Friends.draw (husky) ms/call:', cost.toFixed(3));
+  const url = await ev(page, () => {
+    // (one canvas pixel per unit: a sheet twice this size made Chrome drop the session)
+    const F = window.Friends, h = 270;
+    const c = document.createElement('canvas');
+    c.width = 3100; c.height = F.KINDS.length * 300 + 200;
+    const g = c.getContext('2d');
+    g.fillStyle = '#f7f1e6'; g.fillRect(0, 0, c.width, c.height);
+    F.build(h, 1);
+    const states = ['walk', 'sit', 'eat', 'happy'];
+    F.KINDS.forEach((kind, r) => {
+      states.forEach((state, si) => {
+        [0, 1, 2].forEach((ph) => {
+          const pose = { t: 2 + ph * 0.11 + (state === 'sit' && ph === 2 ? 1.15 : 0), state, p: state === 'walk' ? [0.1, 0.25, 0.6][ph] : ph / 3 };
+          F.draw(g, kind, 140 + (si * 3 + ph) * 250, 296 + r * 300, pose);
+        });
+      });
+    });
+    // the husky as small as on a phone, leaving to the right (mirrored) too
+    F.build(0.34 * 390, 1);
+    const y = F.KINDS.length * 300 + 170;
+    states.forEach((state, si) => [0, 1, 2].forEach((ph) => F.draw(g, 'husky', 100 + (si * 3 + ph) * 140, y, { t: 2 + ph * 0.11, state, p: state === 'walk' ? [0.1, 0.25, 0.6][ph] : ph / 3 })));
+    g.save(); g.translate(1900, y); g.scale(-1, 1); F.draw(g, 'husky', 0, 0, { t: 1, state: 'walk', p: 0.25 }); g.restore();
+    return c.toDataURL('image/png');
+  });
+  fs.writeFileSync(path.join(OUT, 'friends.png'), Buffer.from(url.split(',')[1], 'base64'));
+  fs.writeFileSync(path.join(OUT, 'friends-cost.json'), JSON.stringify({ husky: cost }, null, 2) + '\n');
+  assert.ok(cost > 0, 'the draw cost measured nothing');
+  assert.ok(cost < 1, 'Friends.draw ' + cost.toFixed(3) + ' ms >= 1 ms');
 }));
