@@ -88,6 +88,10 @@ test('wash', () => open(390, 844, async (page) => {
     return !!m && m.x < innerWidth * 0.8;         // the mud cloud has flown into view
   }, { timeout: 8000, polling: 30 });
   await shot(page, 'mud-cloud');
+  await ev(page, () => {                    // it no longer homes in: keep it level with Bella
+    const st = window.__bella.stars.st;
+    const id = setInterval(() => { if (st.mud) st.mud.y = st.hero.y; else clearInterval(id); }, 16);
+  });
   await page.waitForFunction(() => window.__bella.stars.st.mode === 'wash', { timeout: 12000, polling: 50 });
   await hold(page, 2200);                   // the sponge hint is up
   await shot(page, 'wash');

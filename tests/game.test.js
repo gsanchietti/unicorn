@@ -60,12 +60,61 @@ each('hold rises, release floats down', async ({ page }, s) => {
 each('mud, wash, clean gives +5', async ({ page }) => {
   await play({ page });
   await ev(page, () => { window.__bella.stars.st.sinceWash = 15; });
+  await waitFor(page, () => !!window.__bella.stars.st.mud);
+  // the cloud no longer homes in: keep it level with Bella until it touches her
+  await ev(page, () => {
+    const st = window.__bella.stars.st;
+    const id = setInterval(() => { if (st.mud) st.mud.y = st.hero.y; else clearInterval(id); }, 16);
+  });
   await waitFor(page, () => window.__bella.stars.st.mode === 'wash', 8000);
   const before = await ev(page, () => window.__bella.stars.st.score);
   await ev(page, () => window.__bella.stars.cleanAll());
   await waitFor(page, () => window.__bella.stars.st.mode === 'fly', 8000);
   const after = await ev(page, () => window.__bella.stars.st.score);
   assert.strictEqual(after - before, 5);
+});
+
+each('level rises every 10 stars and speed is capped', async ({ page }) => {
+  await tapPlay(page); await waitFor(page, () => window.__bella.stars.st.mode === 'fly');
+  const L = () => ev(page, () => [window.__bella.stars.st.level, window.__bella.stars.speedK()]);
+  assert.deepStrictEqual(await L(), [1, 1]);
+  await ev(page, () => window.__bella.stars.addPoints(9));
+  assert.deepStrictEqual(await L(), [1, 1]);
+  await ev(page, () => window.__bella.stars.addPoints(5));       // 14: crosses 10 like the wash bonus
+  const [l2, k2] = await L();
+  assert.strictEqual(l2, 2); assert.ok(Math.abs(k2 - 1.1) < 1e-9, String(k2));
+  await ev(page, () => window.__bella.stars.addPoints(200));
+  const [l3, k3] = await L();
+  assert.strictEqual(l3, 22); assert.strictEqual(k3, 1.8);
+});
+
+const innerHeightTol = (s) => s.h * 0.03;   // the gentle bob only
+each('mud cloud can be avoided', async ({ page }, s) => {
+  await tapPlay(page); await waitFor(page, () => window.__bella.stars.st.mode === 'fly');
+  await page.mouse.move(s.w / 2, s.h / 2); await page.mouse.down();     // hold: Bella goes to the top
+  await hold(page, 1200);
+  await ev(page, () => { window.__bella.stars.st.sinceWash = 15; });
+  await waitFor(page, () => !!window.__bella.stars.st.mud);
+  await ev(page, () => { const st = window.__bella.stars.st; st.mud.y = innerHeight * 0.75; st.stars.length = 0; });   // far below her
+  const y0 = await ev(page, () => window.__bella.stars.st.mud.y);
+  await hold(page, 300);
+  assert.ok(Math.abs(await ev(page, () => window.__bella.stars.st.mud.y) - y0) < innerHeightTol(s), 'no homing');
+  await waitFor(page, () => !window.__bella.stars.st.mud, 15000);
+  await page.mouse.up();
+  const r = await ev(page, () => { const st = window.__bella.stars.st; return { mode: st.mode, since: st.sinceWash, dirty: !!st.splotches }; });
+  assert.strictEqual(r.mode, 'fly'); assert.strictEqual(r.dirty, false); assert.strictEqual(r.since, 10);
+});
+
+each('new game starts at level 1 without mud', async ({ page }) => {
+  await tapPlay(page); await waitFor(page, () => window.__bella.stars.st.mode === 'fly');
+  await ev(page, () => { window.__bella.stars.addPoints(30); window.__bella.stars.st.sinceWash = 15; });
+  await waitFor(page, () => !!window.__bella.stars.st.mud);
+  await ev(page, () => window.__bella.goHome());
+  await waitFor(page, () => window.__bella.scene() === 'title');
+  await hold(page, 900);
+  await tapPlay(page); await waitFor(page, () => window.__bella.scene() === 'stars');
+  const r = await ev(page, () => ({ level: window.__bella.stars.st.level, mud: window.__bella.stars.st.mud }));
+  assert.deepStrictEqual(r, { level: 1, mud: null });
 });
 
 each('milestone at 10 shows rainbow', async ({ page }) => {
