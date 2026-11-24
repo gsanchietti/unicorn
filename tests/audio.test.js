@@ -33,11 +33,12 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const CALLS = `(() => {
   const S = window.Sound, out = [];
   const run = (n, f) => { try { f(); } catch (e) { out.push(n + ': ' + e.message); } };
-  ['setPlace', 'clipClop', 'door'].forEach((n) => { if (typeof S[n] !== 'function') out.push('missing ' + n); });
-  run('setPlace', () => { S.setPlace('street'); S.setPlace('stars'); S.setPlace('bogus'); S.setPlace(); });
+  ['setPlace', 'clipClop', 'door', 'ding', 'squish', 'plop', 'bell', 'munch'].forEach((n) => { if (typeof S[n] !== 'function') out.push('missing ' + n); });
+  run('setPlace', () => { S.setPlace('street'); S.setPlace('bakery'); S.setPlace('stars'); S.setPlace('bogus'); S.setPlace(); });
   run('clipClop', () => { for (let i = 0; i < 6; i++) S.clipClop(); });
   run('door', () => { S.door(); });
-  run('say', () => { S.say('andiamo'); });
+  run('bakery sfx', () => { S.ding(); S.squish(); S.squish(); S.plop(); S.bell(); S.munch(); S.munch(); });
+  run('say', () => { S.say('andiamo'); S.say('chebuona'); S.say('grazie'); S.say('bravissima'); });
   return out;
 })()`;
 
@@ -121,6 +122,52 @@ test('new synth voices render without errors and stay quiet', async () => {
     });
     for (const k of Object.keys(peaks)) {
       if (peaks[k] === 'timeout') continue;   // offline render may hang under headless; covered above
+      assert.ok(peaks[k].peak > 0.01, k + ' is silent');
+      assert.ok(peaks[k].peak < 0.6, k + ' is loud: ' + peaks[k].peak);
+      assert.ok(peaks[k].first < 0.01 && peaks[k].last < 0.01, k + ' clicks');
+    }
+    assert.deepStrictEqual(errors, []);
+  } finally { await ctx.close(); }
+});
+
+test('bakery voice cues exist, are not recorded, and place swap works', async () => {
+  const { page, errors, ctx } = await open();
+  try {
+    assert.strictEqual(await page.evaluate(() => Sound._voiceText.chebuona), 'Che buona!');
+    assert.strictEqual(await page.evaluate(() => Sound._voiceText.grazie), 'Grazie!');
+    await page.evaluate(() => { Sound.setPlace('bakery'); Sound.init(); });
+    assert.strictEqual(await page.evaluate(() => Sound._song()), 'bakery');
+    await sleep(300);
+    const bar = await page.evaluate(() => Sound._songs.bakery.step * 8);
+    await page.evaluate(() => Sound.setPlace('stars'));
+    await sleep(Math.ceil(2 * bar * 1000) + 600);
+    assert.strictEqual(await page.evaluate(() => Sound._song()), 'day');
+    await page.evaluate(() => Sound.setPlace('bakery'));
+    await sleep(Math.ceil(2 * bar * 1000) + 600);
+    assert.strictEqual(await page.evaluate(() => Sound._song()), 'bakery');
+    assert.deepStrictEqual(errors, []);
+  } finally { await ctx.close(); }
+});
+
+test('bakery synth voices render quiet and click-free', async () => {
+  const { page, errors, ctx } = await open();
+  try {
+    const peaks = await page.evaluate(async () => {
+      const res = {};
+      for (const [name, len] of [['ding', 1.6], ['squish', 0.4], ['plop', 0.4], ['shopBell', 1.6], ['munch', 0.6]]) {
+        const oc = new OfflineAudioContext(1, 44100 * len, 44100);
+        const g = oc.createGain(); g.connect(oc.destination);
+        Sound._synth[name](oc, g, 0.01, 0);
+        const buf = await Promise.race([oc.startRendering(), new Promise((r) => setTimeout(() => r(null), 4000))]);
+        if (!buf) { res[name] = 'timeout'; continue; }
+        const d = buf.getChannelData(0); let p = 0;
+        for (let i = 0; i < d.length; i++) p = Math.max(p, Math.abs(d[i]));
+        res[name] = { peak: p, first: Math.abs(d[0]), last: Math.abs(d[d.length - 1]) };
+      }
+      return res;
+    });
+    for (const k of Object.keys(peaks)) {
+      if (peaks[k] === 'timeout') continue;
       assert.ok(peaks[k].peak > 0.01, k + ' is silent');
       assert.ok(peaks[k].peak < 0.6, k + ' is loud: ' + peaks[k].peak);
       assert.ok(peaks[k].first < 0.01 && peaks[k].last < 0.01, k + ' clicks');

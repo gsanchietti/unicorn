@@ -4,9 +4,9 @@
  * except the optional recorded voice cues assets/sounds/<key>.mp3.
  *
  * Public API: window.Sound = { init, isMuted, setMuted, toggleMute, star,
- *   bubble, boing, splat, fanfare, sparkle, clipClop, door, say, setMood,
- *   getMood, setPlace, suspend, resume }
- *   setPlace('street'|'stars') picks the DAY song of a place; setMood('day'|
+ *   bubble, boing, splat, fanfare, sparkle, clipClop, door, ding, squish, plop,
+ *   bell, munch, say, setMood, getMood, setPlace, suspend, resume }
+ *   setPlace('street'|'bakery'|'stars') picks the DAY song of a place; setMood('day'|
  *   'night') still switches to the shared lullaby. Both crossfade at a bar line.
  *
  * Graph:   sfxBus ----\
@@ -307,11 +307,98 @@
     for (var i = 0; i < notes.length; i++) bell(ctx, dest, t + i * 0.17, notes[i] * (i === 2 ? 2 : 1), 0.2, i === 2 ? 0.8 : 0.5);
   };
 
+
+  // ---- BAKERY song: 16-bar cozy loop, 112 bpm, C major. Music-box lead (the same bell voice
+  // as the lullaby, shorter) over soft pizzicato: plucked bass on beats 1 and 3, little chord
+  // plucks on the off-beats, a hush of tick. No kick, so it stays warm and never tiring.
+  var BAKE_BPM = 112, BEIGHTH = 60 / BAKE_BPM / 2;
+  var K_A1 = [8, _, 7, 5, 7, _, 8, _], K_A2 = [9, _, 8, 7, 8, _, _, _],
+      K_A3 = [7, _, 8, 9, 8, 7, 5, _], K_A4 = [6, 7, 8, _, 5, _, _, _],
+      K_B1 = [5, _, 7, _, 9, _, 8, 7], K_B2 = [8, _, 9, 10, 9, _, 8, _],
+      K_B3 = [7, _, 8, _, 7, 6, 5, _], K_B4 = [5, _, 6, 7, 5, _, _, _];
+  var BAKERY_MELODY = [K_A1, K_A2, K_A3, K_A4,  K_A1, K_A2, K_A3, K_B4,
+                       K_B1, K_B2, K_B3, K_A4,  K_A1, K_A2, K_A3, K_B4];
+  var BAKERY_ROOT = [-12, -17, -19, -12,  -12, -17, -19, -12,  -15, -17, -19, -12,  -12, -17, -19, -12];
+  var BAKERY_CHORD = [2, 3, 3, 2,  2, 3, 3, 2,  1, 3, 3, 2,  2, 3, 3, 2];
+
+  function pluck(ctx, dest, t, f, peak) {              // soft pizzicato: short triangle + lowpass
+    tone(ctx, dest, t, { type: 'triangle', f: f, peak: peak, attack: 0.005, dur: 0.22, lp: 1400 });
+    tone(ctx, dest, t, { f: f * 2, peak: peak * 0.2, attack: 0.004, dur: 0.07 });
+  }
+
+  /** One eighth-note slot (0..127) of the 16-bar bakery loop. */
+  Synth.bakerySlot = function (ctx, dest, t, slot, pass) {
+    var bar = Math.floor(slot / 8), step = slot % 8, alt = (pass % 2) === 1;
+    var m = BAKERY_MELODY[bar][step];
+    if (m >= 0) {
+      bell(ctx, dest, t, semis(LADDER_SEMI(m)), (step % 4 === 0) ? 0.42 : 0.32, 0.7);
+      if (alt && bar >= 8 && bar < 12) bell(ctx, dest, t, semis(LADDER_SEMI(m + 2)), 0.10, 0.5);
+    }
+    if (step === 0 || step === 4) {
+      var root = BAKERY_ROOT[bar] + (step === 4 ? 7 : 0);
+      pluck(ctx, dest, t, semis(root), 0.42);
+    }
+    if (step === 2 || step === 6) {
+      pluck(ctx, dest, t, semis(LADDER_SEMI(BAKERY_CHORD[bar])), 0.16);
+      pluck(ctx, dest, t, semis(LADDER_SEMI(BAKERY_CHORD[bar] + 2)), 0.12);
+    }
+    tick(ctx, dest, t, step % 2 === 1 ? 0.025 : 0.012);
+  };
+
+  // ---- Bakery kitchen sounds (all soft and short).
+  /** Oven ding: one clear bell, high and bright but gentle (~1.2 s). */
+  Synth.ding = function (ctx, dest, t) {
+    bell(ctx, dest, t, pent(10) * 2, 0.22, 1.2);          // C7
+    bell(ctx, dest, t + 0.012, pent(10) * 2 * 1.5, 0.05, 0.6);
+  };
+  /** Soft cream squish: low-passed noise puff with a tiny downward bloop (~0.2 s). */
+  Synth.squish = function (ctx, dest, t) {
+    var src = ctx.createBufferSource(), lp = ctx.createBiquadFilter(), g = ctx.createGain();
+    src.buffer = noiseBuffer(ctx);
+    lp.type = 'lowpass'; lp.Q.value = 1.5;
+    lp.frequency.setValueAtTime(1200, t);
+    lp.frequency.exponentialRampToValueAtTime(400, t + 0.16);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(0.16, t + 0.025);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.2);
+    src.connect(lp); lp.connect(g); g.connect(dest);
+    src.start(t, Math.random() * 0.5); src.stop(t + 0.22);
+    tone(ctx, dest, t, { f: 320 + Math.random() * 60, f2: 200, glide: 0.12, peak: 0.1, attack: 0.012, dur: 0.16 });
+  };
+  /** A topping lands: round little "plop" with a soft sparkle on top (~0.2 s). */
+  Synth.plop = function (ctx, dest, t) {
+    tone(ctx, dest, t, { f: 520, f2: 260, glide: 0.09, peak: 0.26, attack: 0.006, dur: 0.18 });
+    tone(ctx, dest, t, { f: 1040, f2: 600, glide: 0.06, peak: 0.05, attack: 0.005, dur: 0.1 });
+    bell(ctx, dest, t + 0.04, pent(8) * 2, 0.06, 0.3);
+  };
+  /** Shop bell: two bright bell strikes, a fifth apart (~1.2 s). */
+  Synth.shopBell = function (ctx, dest, t) {
+    bell(ctx, dest, t, pent(8) * 2, 0.2, 0.9);             // G6
+    bell(ctx, dest, t + 0.16, pent(5) * 4, 0.18, 1.0);     // C7
+  };
+  /** Happy nibble, ~0.4 s: three soft low-passed noise bites with a little hum. k unused. */
+  Synth.munch = function (ctx, dest, t) {
+    for (var i = 0; i < 3; i++) {
+      var tt = t + i * 0.12;
+      var src = ctx.createBufferSource(), lp = ctx.createBiquadFilter(), g = ctx.createGain();
+      src.buffer = noiseBuffer(ctx);
+      lp.type = 'lowpass'; lp.frequency.value = 900 + i * 150; lp.Q.value = 1;
+      g.gain.setValueAtTime(0.0001, tt);
+      g.gain.linearRampToValueAtTime(0.16, tt + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001, tt + 0.08);
+      src.connect(lp); lp.connect(g); g.connect(dest);
+      src.start(tt, Math.random() * 0.5); src.stop(tt + 0.1);
+      tone(ctx, dest, tt, { f: 240 + i * 40, f2: 180 + i * 30, glide: 0.07, peak: 0.07, attack: 0.01, dur: 0.1 });
+    }
+    tone(ctx, dest, t + 0.3, { f: pent(8), peak: 0.05, attack: 0.02, dur: 0.1 });   // contented "mm"
+  };
+
   Synth.musicSlot = Synth.nightSlot;   // backwards-compatible name
   var SONGS = {
     night: { slots: 64, step: EIGHTH, fn: Synth.nightSlot, gain: 1 },
     day:   { slots: 128, step: DEIGHTH, fn: Synth.daySlot, gain: 0.7 },
-    street: { slots: 128, step: SEIGHTH, fn: Synth.streetSlot, gain: 0.7 }
+    street: { slots: 128, step: SEIGHTH, fn: Synth.streetSlot, gain: 0.7 },
+    bakery: { slots: 128, step: BEIGHTH, fn: Synth.bakerySlot, gain: 0.7 }
   };
   var XFADE = 3;   // seconds, mood crossfade
 
@@ -320,9 +407,9 @@
   var muted = false, suspended = false, musicStarted = false, unlockedSpeech = false;
   var musicTimer = null, nextSlotTime = 0, slotCounter = 0;
   var mood = 'day', place = 'stars', curMood = 'day', pendingMood = null, songBus = {};
-  // curMood / pendingMood hold a SONG key: 'day', 'street' or 'night'.
-  function wantSong() { return mood === 'night' ? 'night' : (place === 'street' ? 'street' : 'day'); }
-  var lastBubble = 0, stepFlip = false;
+  // curMood / pendingMood hold a SONG key: 'day', 'street', 'bakery' or 'night'.
+  function wantSong() { return mood === 'night' ? 'night' : (place === 'street' || place === 'bakery' ? place : 'day'); }
+  var lastBubble = 0, lastSquish = 0, stepFlip = false;
 
   try {
     var saved = window.localStorage.getItem(MUTE_KEY);
@@ -346,7 +433,7 @@
       sfxBus.connect(master); musicBus.connect(master);
       // one sub-bus per song, so moods can be crossfaded under the shared (ducked) musicBus
       curMood = wantSong(); pendingMood = null;
-      ['day', 'street', 'night'].forEach(function (k) {
+      ['day', 'street', 'bakery', 'night'].forEach(function (k) {
         songBus[k] = ctx.createGain();
         songBus[k].gain.value = (k === curMood) ? SONGS[k].gain : 0;
         songBus[k].connect(musicBus);
@@ -404,7 +491,8 @@
   }
 
   // ---- speech / recorded voice
-  var VOICE_TEXT = { via: 'Si vola!', bravissima: 'Bravissima!', laviamo: 'Laviamoli!', puliti: 'Che puliti!', andiamo: 'Andiamo!' };
+  var VOICE_TEXT = { via: 'Si vola!', bravissima: 'Bravissima!', laviamo: 'Laviamoli!', puliti: 'Che puliti!', andiamo: 'Andiamo!',
+    chebuona: 'Che buona!', grazie: 'Grazie!' };
   // Recorded voice files. Add a key here after dropping assets/sounds/<key>.mp3,
   // e.g. ['bravissima', 'via']. Keys not listed use the browser's Italian voice,
   // so nothing is requested for missing files.
@@ -512,10 +600,10 @@
       } catch (e) { /* ignore */ }
     },
     getMood: function () { return mood; },
-    /** 'street' or 'stars': which day song plays. Night stays the shared lullaby. */
+    /** 'street', 'bakery' or 'stars': which day song plays. Night stays the shared lullaby. */
     setPlace: function (p) {
       try {
-        if (p !== 'street' && p !== 'stars') return;
+        if (p !== 'street' && p !== 'bakery' && p !== 'stars') return;
         if (p === place) return;
         place = p;
         applySong();
@@ -535,6 +623,16 @@
     sparkle: function () { playSfx(Synth.sparkle); },
     clipClop: function () { stepFlip = !stepFlip; playSfx(Synth.clipClop, stepFlip ? 1 : 0); },
     door: function () { playSfx(Synth.door); },
+    ding: function () { playSfx(Synth.ding); },
+    squish: function () {
+      var now = (window.performance && performance.now) ? performance.now() : Date.now();
+      if (now - lastSquish < 150) return;
+      lastSquish = now;
+      playSfx(Synth.squish);
+    },
+    plop: function () { playSfx(Synth.plop); },
+    bell: function () { playSfx(Synth.shopBell); },
+    munch: function () { playSfx(Synth.munch); },
 
     say: function (key) {
       try {
