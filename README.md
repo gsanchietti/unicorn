@@ -71,8 +71,8 @@ Phones keep the game files for offline play (`sw.js`). After changing any file, 
 
 ## Files
 
-- `index.html`, `style.css`: the page, paper texture and mute button
-- `js/art.js`: watercolor drawings (sky, hills, stars, clouds, mud, rainbow, bubbles)
+- `index.html`, `style.css`: the page, painted-wall texture and the home and mute buttons
+- `js/art.js`: ink-and-pencil drawings in the style of the bedroom-wall mural (wall, grass and river, stars, clouds, moon, mud, rainbow, bubbles)
 - `js/audio.js`: sounds and music made in code, plus voice cues
 - `js/characters.js`: Bella and Bongo, drawn and animated
 - `js/core.js`: the shared core (screen, touch, buttons, saving, moving between places)

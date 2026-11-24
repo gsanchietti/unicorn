@@ -41,25 +41,26 @@
     S.skyN = Art.paintNightSky ? Art.paintNightSky(W, H, DPR) : null;
     var P = Art.PAL || {};
     S.hills = [
-      [S.hillBack, tintTile(S.hillBack, P.sunsetTint, '#ff9a6a'), tintTile(S.hillBack, P.nightTint, '#3b3a7a')],
-      [S.hillFront, tintTile(S.hillFront, P.sunsetTint, '#ff9a6a'), tintTile(S.hillFront, P.nightTint, '#3b3a7a')]
+      [S.hillBack, tintTile(S.hillBack, P.sunsetTint, 0.2), tintTile(S.hillBack, P.nightTint, 0.55)],
+      [S.hillFront, tintTile(S.hillFront, P.sunsetTint, 0.2), tintTile(S.hillFront, P.nightTint, 0.55)]
     ];
-    S.deco = [1, 2, 3, 4].map(function (s) { return Art.cloudSprite(M * (0.34 + s * 0.07), DPR, { seed: s * 11, face: false }); });
+    S.deco = [1, 2, 3, 4].map(function (s) { return Art.cloudSprite(M * (0.18 + s * 0.04), DPR, { seed: s * 11, face: false }); });
     if (!deco.length) {
       for (var i = 0; i < 40; i++) twinkles.push({ x: Math.random(), y: 0.02 + Math.random() * 0.5, r: 0.008 + Math.random() * 0.012, sp: rnd(0.4, 1.4), ph: rnd(0, TAU) });
       for (i = 0; i < 6; i++) flies.push({ x: Math.random(), y: 0.6 + Math.random() * 0.2, sp: rnd(0.2, 0.4), ph: rnd(0, TAU), ph2: rnd(0, TAU) });
-      for (i = 0; i < 5; i++) deco.push({ x: Math.random(), y: 0.08 + Math.random() * 0.45, k: i % 4, sp: 0.01 + Math.random() * 0.02, a: 0.18 + Math.random() * 0.14 });
+      for (i = 0; i < 5; i++) deco.push({ x: Math.random(), y: 0.08 + Math.random() * 0.45, k: i % 4, sp: 0.01 + Math.random() * 0.02, a: 0.8 + Math.random() * 0.15 });
     }
   }
 
-  function tintTile(src, color, fallback) {
+  // A copy of a painted tile with a wash of the color over it (ink lines included).
+  function tintTile(src, color, alpha) {
     var c = document.createElement('canvas');
     c.width = src.width; c.height = src.height;
     var g = c.getContext('2d');
     g.drawImage(src, 0, 0);
     g.globalCompositeOperation = 'source-atop';
-    g.fillStyle = color || fallback;
-    if (!color || /^#/.test(color)) g.globalAlpha = 0.55;
+    g.fillStyle = color || '#1f2c63';
+    g.globalAlpha = alpha;
     g.fillRect(0, 0, c.width, c.height);
     return c;
   }

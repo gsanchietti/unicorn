@@ -38,7 +38,7 @@ python3 -m http.server 8000          # needed to test the service worker / phone
 cd tests && npm install && npm test   # headless system Chrome (CHROME_PATH to override), about 70 s
 ```
 
-`tests/helpers.js` has the static server and page helpers; `tests/game.test.js` plays the game through the `window.__bella` hook at 390x844 and 844x390 and asserts no console errors.
+`tests/helpers.js` has the static server and page helpers; `tests/game.test.js` plays the game through the `window.__bella` hook at 390x844 and 844x390 and asserts no console errors. `tests/render.test.js` saves a screenshot of every look to `tests/out/` (git-ignored; look at them after any art change) and asserts the canvas render cost stays under 8 ms per frame (`__bella.frameMs()`).
 
 Other ways:
 
@@ -67,14 +67,14 @@ Script order in `index.html` matters: `js/art.js`, `js/characters.js`, `js/audio
 
 | File | Global | What it does |
 |---|---|---|
-| `js/art.js` | `window.Art` | Watercolor sprites and backgrounds, pre-rendered to canvases (`starSprite`, `cloudSprite`, `bubbleSprite`, `paintSky`, `paintSunsetSky`, `paintNightSky`, `paintHills`, `makeSplotch`/`drawSplotch`, `drawRainbow`, `drawSponge`, `drawPlayButton`, `drawMedal`, `drawMoon`, ...). `PAL` is the palette. |
+| `js/art.js` | `window.Art` | Ink-and-pencil sprites and backgrounds in the bedroom-wall mural style, pre-rendered to canvases (`starSprite`, `cloudSprite`, `bubbleSprite`, `paintSky`, `paintSunsetSky`, `paintNightSky`, `paintHills`, `makeSplotch`/`drawSplotch`, `drawRainbow`, `drawSponge`, `drawPlayButton`, `drawMedal`, `drawMoon`, ...). `ink` and `pencil` are the two style helpers (also for the characters). `PAL` is the palette. |
 | `js/characters.js` | `window.Characters` | Puppet rig for Bella and Bongo, drawn in code. |
 | `js/audio.js` | `window.Sound` | All sound synthesized with Web Audio, plus Italian voice cues. |
 | `js/core.js` | `window.Core` | Canvas, size/DPR, rAF loop, pointers, `#mute` and `#home`, full screen, `visibilitychange` pause, save data, scene switching with a fade. |
 | `js/backdrop.js` | `window.Backdrop` | Sky, hills, far clouds, moon, twinkles, fireflies and the day/night cycle, shared by every place. |
 | `js/scenes/title.js` | (registers `title`) | Start page: hero, play button, best-score medals. |
 | `js/scenes/stars.js` | (registers `stars`) | The star game: modes, scoring, mud and washing, score bar. |
-| `index.html`, `style.css` | | Page shell: `canvas#game`, `.paper` grain overlay (SVG feTurbulence, multiply), `#title`, `#home`, `#mute`, the `Bella Title` @font-face. |
+| `index.html`, `style.css` | | Page shell: `canvas#game`, `.paper` painted-wall overlay (SVG feTurbulence, multiply), `#title`, `#home`, `#mute`, the `Bella Title` @font-face. |
 | `sw.js`, `manifest.webmanifest` | | Offline play and install to the home screen. |
 | `tools/icons.html` | | Renders app icons from the game's own art. |
 | `tools/cutout.py` | | Background removal for new photos. |
