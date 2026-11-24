@@ -5,7 +5,7 @@ const { test, before, after } = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
-const { startServer, launch, openGame, scene, tapPlay, hold } = require('./helpers');
+const { startServer, launch, openGame, scene, tapPlay, playStars, hold } = require('./helpers');
 
 const OUT = process.env.RENDER_OUT || path.join(__dirname, 'out');
 const BUDGET_MS = 8;
@@ -32,9 +32,55 @@ async function open(w, h, fn) {
 }
 
 async function startFlying(page) {
-  await tapPlay(page);
-  await page.waitForFunction(() => window.__bella.stars.st.mode === 'fly', { timeout: 8000, polling: 50 });
+  await playStars(page);
 }
+
+async function toStreet(page) {
+  await tapPlay(page);
+  await page.waitForFunction(() => window.__bella.scene() === 'street', { timeout: 8000, polling: 50 });
+  await hold(page, 600);                    // past the fade in
+}
+
+test('street in day and night, within the render budget', () => open(390, 844, async (page) => {
+  await ev(page, () => { try { localStorage.setItem('bella.stars', '23'); } catch (e) { /* ignore */ } });
+  await page.reload({ waitUntil: 'load' });
+  await page.waitForFunction(() => window.__bella && window.__bella.scene);
+  await toStreet(page);
+  await ev(page, () => window.__bella.setTime('day'));
+  await frames(page, 3);
+  await shot(page, 'street-day');
+  // walk right (away from every place) for the render cost
+  await page.mouse.move(390 * 0.85, 844 * 0.5);
+  await page.mouse.down();
+  await frames(page, 125);
+  const cost = await ev(page, () => window.__bella.frameMs());
+  await page.mouse.up();
+  console.log('street render ms/frame @390x844 DPR2 (walking):', cost.toFixed(3));
+  fs.writeFileSync(path.join(OUT, 'street-cost.json'), JSON.stringify({ walking: cost }, null, 2) + '\n');
+  await ev(page, () => window.__bella.setTime('night'));
+  await hold(page, 2500);                   // the street's night wash eases in
+  await shot(page, 'street-night');
+  assert.ok(cost > 0, 'street: frameMs() measured nothing');
+  assert.ok(cost < BUDGET_MS, 'street render ' + cost.toFixed(2) + ' ms >= ' + BUDGET_MS + ' ms');
+}));
+
+test('street, phone landscape', () => open(844, 390, async (page) => {
+  await toStreet(page);
+  await ev(page, () => window.__bella.setTime('day'));
+  await frames(page, 3);
+  await shot(page, 'street-landscape-day');
+}));
+
+test('street, the jar shows the total', () => open(390, 844, async (page) => {
+  await ev(page, () => { try { localStorage.setItem('bella.stars', '47'); } catch (e) { /* ignore */ } });
+  await page.reload({ waitUntil: 'load' });
+  await page.waitForFunction(() => window.__bella && window.__bella.scene);
+  await toStreet(page);
+  await ev(page, () => { window.__bella.setTime('day'); window.__bella.street.enter('square'); });
+  await page.waitForFunction(() => window.__bella.street.st.jarShow > 0, { timeout: 10000, polling: 30 });
+  await hold(page, 700);                    // the row of stars has risen
+  await shot(page, 'street-jar');
+}));
 
 for (const s of [
   { name: 'start-phone-portrait', w: 390, h: 844 },

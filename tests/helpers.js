@@ -66,4 +66,13 @@ async function tapPlay(page) {
 
 const hold = (page, ms) => new Promise((r) => setTimeout(r, ms));
 
-module.exports = { startServer, launch, openGame, scene, tapPlay, hold };
+// Start page -> street -> through the sky gate into the star game, flying.
+async function playStars(page) {
+  const wait = (fn) => page.waitForFunction(fn, { timeout: 15000, polling: 50 });
+  await tapPlay(page);
+  await wait(() => window.__bella.scene() === 'street');
+  await page.evaluate(() => window.__bella.street.enter('gate'));
+  await wait(() => window.__bella.scene() === 'stars' && window.__bella.stars.st.mode === 'fly');
+}
+
+module.exports = { startServer, launch, openGame, scene, tapPlay, playStars, hold };

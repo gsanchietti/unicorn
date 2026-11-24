@@ -1,9 +1,12 @@
 /* scenes/stars.js - the star game: fly and collect stars, mud cloud, wash, +5 bonus.
  * Modes: toFly -> fly -> toWash -> wash -> clean -> toFly ('off' while another scene runs).
- * Registers the 'stars' scene with window.Core (home: 'title', day/night cycle on).
+ * Registers the 'stars' scene with window.Core (home: 'street', day/night cycle on,
+ * music: 'stars').
  * enter({hero: {x, y, h}}) starts a new game, flying in from that spot.
+ * Every point also goes to the star total (Core.addStars), which fills the jar.
  * Uses window.Art, window.Characters, window.Backdrop; audio only through Core.snd.
- * Adds window.__bella.stars = {st, pose, addPoints, cleanAll, getDirty, speedK} for the tests.
+ * Adds window.__bella.stars = {st, pose, addPoints, cleanAll, getDirty, speedK, enters}
+ * for the tests (enters counts enter() calls).
  * st.level = floor(score / 10) + 1; every level the world is 10% quicker (speedK, max 1.8).
  * The mud cloud {x, y, ph, vy} flies straight at a random height; only a touch hits.
  */
@@ -310,6 +313,7 @@
     var old = st.score;
     for (var k = 0; k < n; k++) st.slotPop[(old + k) % 10] = 0;
     st.score += n;
+    Core.addStars(n);
     if (Math.floor(st.score / 10) > Math.floor(old / 10)) st.bigPop = 0;
     var lv = Math.floor(st.score / 10) + 1;
     if (lv > st.level) { st.level = lv; levelUp(); } else st.level = lv;
@@ -829,9 +833,10 @@
 
   // ------------------------------------------------------------------ scene
   Core.register('stars', {
-    home: 'title',
+    home: 'street',
     clock: true,
-    enter: function (args) { sync(); startGame(args && args.hero); },
+    music: 'stars',
+    enter: function (args) { hook.enters++; sync(); startGame(args && args.hero); },
     exit: function () { stopGame(); },
     update: function (dt) { sync(); update(dt); },
     render: function (g) { sync(); render(g); },
@@ -840,8 +845,8 @@
   });
 
   if (window.__bella === undefined) window.__bella = {};
-  window.__bella.stars = {
-    st: st, pose: pose,
+  var hook = window.__bella.stars = {
+    st: st, pose: pose, enters: 0,
     addPoints: function (n) { addPoints(n); },
     speedK: speedK,
     getDirty: function () { return st.splotches ? st.splotches.map(function (s) { return s.amount; }) : []; },

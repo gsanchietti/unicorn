@@ -1,20 +1,26 @@
 # Bella e Bongo
 
-A gentle browser game for small children. Bella the unicorn flies with Bongo the teddy bear on her back and collects stars. There is nothing to read, no game over, and points are never taken away.
+A gentle browser game for small children. Bella the unicorn and Bongo the teddy bear, on her back, live on the street of a small fairy town. Through the sky gate they fly and collect stars. There is nothing to read, no game over, and points are never taken away.
 
 **Play online:** https://gsanchietti.github.io/unicorn/
 
 ## How to play
 
-- Tap the big **play** button on the start page. The game goes full screen.
-- **Tap or hold** the screen: Bella flies up. **Let go**: she floats down gently.
+- Tap the big **play** button on the start page. The game goes full screen and Bella and Bongo are on the street.
+- On the street, **hold the left or right half** of the screen: Bella trots that way. Let go and she stops.
+- **Tap a place** and Bella walks there:
+  - the **sky gate** (the cloud with the ladder and the star sign) opens the star game;
+  - the **star jar** on the town square jiggles and shows all the stars collected so far, as stars;
+  - the houses, the bakery (cake sign) and the pond (octopus sign) are still closed: they just wiggle.
+- In the star game, **tap or hold** the screen: Bella flies up. **Let go**: she floats down gently.
 - Touch the **stars** to collect them. Clouds are harmless: Bella just bounces off them.
 - After about 15 stars, a muddy cloud splashes them both. **Rub the screen** to wash off the mud. When they are clean you get 5 bonus stars.
 - At the top, every 10 stars turn into one big star.
 - At 10, 25, 50 stars, and every 50 after that: confetti, a rainbow and "Bravissima!".
-- After a while the sky turns to sunset and a cozy night with a smiling moon, then back to day. The music changes from a happy tune to a lullaby.
+- After a while (on the street and in the star game) the sky turns to sunset and a cozy night with a smiling moon, then back to day. The music changes from a happy tune to a lullaby.
 - The round button at the top right turns the sound on and off. Sound starts after the first tap.
-- The house button next to it goes back to the start page. Leaving full screen does the same.
+- Every star also goes into the jar on the street, which keeps the total from all the games.
+- The house button next to it goes back one step: from the star game to the street, from the street to the start page. Leaving full screen goes back to the start page.
 
 ## Put it on a phone or tablet
 
@@ -72,10 +78,10 @@ Phones keep the game files for offline play (`sw.js`). After changing any file, 
 ## Test it
 
 ```sh
-cd tests && npm install && npm test    # headless Chrome, about 70 s
+cd tests && npm install && npm test    # headless Chrome, a few minutes
 ```
 
-`tests/game.test.js` plays the game and checks the scenes, touch, saving, offline play and that the live game and the preview stay separate (it needs a `main` worktree at `.worktrees/main`, or `MAIN_WORKTREE`). `tests/render.test.js` saves screenshots of every look to `tests/out/` and checks the drawing cost per frame.
+`tests/game.test.js` plays the game and checks the scenes, the street, touch, saving, offline play and that the live game and the preview stay separate (it needs a `main` worktree at `.worktrees/main`, or `MAIN_WORKTREE`). `tests/render.test.js` saves screenshots of every look to `tests/out/` and checks the drawing cost per frame.
 
 ## Preview the next version
 
@@ -85,11 +91,13 @@ The new look is developed on branch `town`. `tools/publish-preview.sh <town-work
 
 - `index.html`, `style.css`: the page, painted-wall texture and the home and mute buttons
 - `js/art.js`: ink-and-pencil drawings in the style of the bedroom-wall mural (wall, grass and river, stars, clouds, moon, mud, rainbow, bubbles)
+- `js/art-town.js`: the street's drawings (houses, the sky gate, the bakery, the pond, trees, the star jar, the signs)
 - `js/audio.js`: sounds and music made in code, plus voice cues
 - `js/characters.js`: Bella and Bongo, drawn and animated
 - `js/core.js`: the shared core (screen, touch, buttons, saving, moving between places)
 - `js/backdrop.js`: the sky, hills and day/night cycle behind every place
 - `js/scenes/title.js`: the start page
+- `js/scenes/street.js`: the street, the town's hub
 - `js/scenes/stars.js`: the star game
 - `manifest.webmanifest`, `sw.js`: home-screen install and offline play
 - `assets/icons/`: app and tab icons, drawn by `tools/icons.html` from the game art (open it with `?size=512`; `?pad=0.12` for the maskable icon, `?crop=head` for the tab icon)

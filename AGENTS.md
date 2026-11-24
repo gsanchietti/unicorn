@@ -35,10 +35,10 @@ python3 -m http.server 8000          # needed to test the service worker / phone
 **Test before saying something works.** Run the automated tests, then check by eye when needed:
 
 ```sh
-cd tests && npm install && npm test   # headless system Chrome (CHROME_PATH to override), about 70 s
+cd tests && npm install && npm test   # headless system Chrome (CHROME_PATH to override), a few minutes
 ```
 
-`tests/helpers.js` has the static server and page helpers; `tests/game.test.js` plays the game through the `window.__bella` hook at 390x844 and 844x390 and asserts no console errors. `tests/render.test.js` saves a screenshot of every look (day, sunset, night, wash, milestone, character sheet, start page) to `tests/out/` (git-ignored; `RENDER_OUT` overrides the folder) and checks the render budget (average canvas cost per frame, `BUDGET_MS`). Look at those screenshots by eye after any art change.
+`tests/helpers.js` has the static server and page helpers (`playStars(page)` goes start page → street → sky gate → star game, flying); `tests/game.test.js` plays the game through the `window.__bella` hook at 390x844 and 844x390 and asserts no console errors. `tests/render.test.js` saves a screenshot of every look (day, sunset, night, wash, milestone, character sheet, start page, street day/night/landscape/jar) to `tests/out/` (git-ignored; `RENDER_OUT` overrides the folder) and checks the render budget (average canvas cost per frame, `BUDGET_MS`). Look at those screenshots by eye after any art change.
 
 The test `live game and preview stay separate` serves the `main` worktree with `next/` inside. It looks for it at `.worktrees/main` (or `MAIN_WORKTREE`) and is skipped, with a message, if that folder is missing. `tests/render.test.js` saves a screenshot of every look to `tests/out/` (git-ignored; look at them after any art change) and asserts the canvas render cost stays under 8 ms per frame (`__bella.frameMs()`).
 
@@ -48,33 +48,37 @@ Other ways:
    - Sizes used so far: phone 390x844 and 844x390 (DPR 3, `hasTouch`, `isMobile`), tablet 1024x768 and 768x1024 (DPR 2).
    - Collect `console` errors and warnings, `pageerror` and `requestfailed`. The expected result is an empty list.
    - Full play-through:
-     1. Tap the play button. It is at `(W/2, 0.65*H)` with radius `0.14*min(W,H)` (`playButton()` in `js/scenes/title.js`). Taps elsewhere on the start page do nothing.
-     2. Hold, and check that `__bella.stars.st.hero.y` goes down; release, and check that it goes up.
-     3. Set `__bella.stars.st.sinceWash = 15` to get the mud cloud, then wait for mode `wash`.
-     4. Rub by dispatching `PointerEvent`s on `#game`, or call `__bella.stars.cleanAll()`. Check the +5 bonus.
-     5. Call `__bella.stars.addPoints(24)` to trigger a milestone. Reload and check `bella.best`.
-2. **The owner's real Chrome** through the Claude-in-Chrome extension (allowed). Use it for real fps and for the live site. If your test plays leave a `bella.best` in that browser, remove it afterwards. Leave `bella.muted` alone: the owner may have set it.
+     1. Tap the play button. It is at `(W/2, 0.65*H)` with radius `0.14*min(W,H)` (`playButton()` in `js/scenes/title.js`). Taps elsewhere on the start page do nothing. It leads to the street.
+     2. On the street, hold the left or right half and check that `__bella.street.st.x` moves. Call `__bella.street.enter('gate')` (or tap the gate at `sx, sy` from `__bella.street.places()`) to enter the star game.
+     3. Hold, and check that `__bella.stars.st.hero.y` goes down; release, and check that it goes up.
+     4. Set `__bella.stars.st.sinceWash = 15` to get the mud cloud, then wait for mode `wash`.
+     5. Rub by dispatching `PointerEvent`s on `#game`, or call `__bella.stars.cleanAll()`. Check the +5 bonus.
+     6. Call `__bella.stars.addPoints(24)` to trigger a milestone. Reload and check `bella.best` and `bella.stars`.
+2. **The owner's real Chrome** through the Claude-in-Chrome extension (allowed). Use it for real fps and for the live site. If your test plays leave a `bella.best` or `bella.stars` in that browser, remove them afterwards. Leave `bella.muted` alone: the owner may have set it.
 
 **Debug hook `window.__bella`:**
-- `scene()`: the current scene name (`'title'`, `'stars'`).
-- `goHome()`: same as a click on `#home` (goes to the scene's `home`, with the fade).
-- `stars`: `st` (the star game state; `st.mode`, `st.score`, `st.best`, `st.hero`, `st.held` = a finger is down now), `pose`, `addPoints(n)`, `getDirty()` (mud amounts), `cleanAll()`.
+- `scene()`: the current scene name (`'title'`, `'street'`, `'stars'`).
+- `goHome()`: same as a click on `#home` (goes to the scene's `home`, one level back, with the fade).
+- `street`: `st` (`{x, camX, target, walking, dir, jarShow, jiggle}`: Bella's world x, the camera's left edge, the place she walks to or `null`, ...), `places()` (`[{kind, x, sx, sy, r}]`: world x, screen center and radius of each tap target), `worldW()`, `enter(kind)` (same as a tap on that place: `'square'`, `'gate'`, `'house'`, `'bakery'`, `'pond'`).
+- `stars`: `st` (the star game state; `st.mode`, `st.score`, `st.best`, `st.hero`, `st.held` = a finger is down now), `pose`, `addPoints(n)`, `getDirty()` (mud amounts), `cleanAll()`, `speedK()`, `enters` (count of `enter()` calls).
 - `setTime('day'|'sunset'|'night'|'sunrise')`.
 
 Not yet tested on a real phone or tablet. The `visibilitychange` pause and two-finger touch are covered only by the headless tests (synthetic events).
 
 ## Architecture and file map
 
-Script order in `index.html` matters: `js/art.js`, `js/characters.js`, `js/audio.js`, `js/core.js`, `js/backdrop.js`, `js/scenes/title.js`, `js/scenes/stars.js`, then an inline `Core.start('title')`. Each file starts with a header comment that describes its API. Read it first.
+Script order in `index.html` matters: `js/art.js`, `js/art-town.js`, `js/characters.js`, `js/audio.js`, `js/core.js`, `js/backdrop.js`, `js/scenes/title.js`, `js/scenes/street.js`, `js/scenes/stars.js`, then an inline `Core.start('title')`. Each file starts with a header comment that describes its API. Read it first.
 
 | File | Global | What it does |
 |---|---|---|
 | `js/art.js` | `window.Art` | Ink-and-pencil sprites and backgrounds in the bedroom-wall mural style, pre-rendered to canvases (`starSprite`, `cloudSprite`, `bubbleSprite`, `paintSky`, `paintSunsetSky`, `paintNightSky`, `paintHills`, `makeSplotch`/`drawSplotch`, `drawRainbow`, `drawSponge`, `drawPlayButton`, `drawMedal`, `drawMoon`, ...). `ink` and `pencil` are the two style helpers (also for the characters). `PAL` is the palette. |
+| `js/art-town.js` | `window.Town` | The street's painted pieces, pre-rendered per size: `build(M, DPR)`, `KINDS`, `sprite(kind, night)` (anchored at bottom center), `lifeSprite(kind)` (centered), `groundTile()`, `drawJar(g, x, y, h, total, jiggle)`, `drawSign(g, x, y, r, kind, t)`. Placeholder drawings until the designer paints them. |
 | `js/characters.js` | `window.Characters` | Puppet rig for Bella and Bongo, drawn in code. |
 | `js/audio.js` | `window.Sound` | All sound synthesized with Web Audio, plus Italian voice cues. |
 | `js/core.js` | `window.Core` | Canvas, size/DPR, rAF loop, pointers, `#mute` and `#home`, full screen, `visibilitychange` pause, save data, scene switching with a fade. |
 | `js/backdrop.js` | `window.Backdrop` | Sky, hills, far clouds, moon, twinkles, fireflies and the day/night cycle, shared by every place. |
 | `js/scenes/title.js` | (registers `title`) | Start page: hero, play button, best-score medals. |
+| `js/scenes/street.js` | (registers `street`) | The street, the hub: Bella trots left and right, the sky gate into the star game, the star jar on the town square, closed doors, life (fox, clothesline, mouse balloon, butterflies). |
 | `js/scenes/stars.js` | (registers `stars`) | The star game: modes, scoring, mud and washing, score bar. |
 | `index.html`, `style.css` | | Page shell: `canvas#game`, `.paper` painted-wall overlay (SVG feTurbulence, multiply), `#title`, `#home`, `#mute`, the `Bella Title` @font-face. |
 | `sw.js`, `manifest.webmanifest` | | Offline play and install to the home screen. |
@@ -92,7 +96,7 @@ Script order in `index.html` matters: `js/art.js`, `js/characters.js`, `js/audio
   - `look`.
   - `glow`: horn and butterfly flash.
   - `face`: `undefined` lets Bongo turn to the player every few seconds; `0` is profile; `1` is front.
-- `Characters.prerender(ppu)` caches part sprites for the **2 most recent** scales only. The star game passes just two fixed values, `S.ppuFly` and `S.ppuWash`, and the start page draws at the same flying scale, so the cache is never rebuilt mid-game. Do not pass a continuously changing scale.
+- `Characters.prerender(ppu)` caches part sprites for the **2 most recent** scales only. The star game passes just two fixed values, `S.ppuFly` and `S.ppuWash`, and the start page and the street draw at the same flying scale, so the cache is never rebuilt mid-game. Do not pass a continuously changing scale.
 - `Characters.anchors`: rest-pose points used to place mud (`bellaHind`, `bellaBelly`, `bellaChest`, `bellaNeck`, `bellaCheek`, `bellaLegBack`, `bellaLegFront`, `bongoCheek`, `bongoTummy`, `bongoArm`, `body`).
 - Authoring spaces: Bella is drawn in "bella.png space" (657x700) and mapped into the rig with `R()`; Bongo is drawn in "bongo.png space" (519x700) and mapped with `B()`.
 - Bella's horn and butterfly color-cycle like toy lights (`GLOW_STEPS = 24`) and flash on each star. Bongo wears blue crocheted overalls, has a small rabbit-like pom-pom tail, rides in profile and turns his face now and then.
@@ -107,18 +111,24 @@ Script order in `index.html` matters: `js/art.js`, `js/characters.js`, `js/audio
 - `Sound.init()` (via `Core.snd('init')`) runs on **both** pointerdown and pointerup. Mobile browsers unlock audio on pointerup.
 
 ### core.js and scenes
-- **Scenes** register with `Core.register(name, scene)`. A scene is `{home, clock, enter(args), exit(), update(dt), render(g), pointer(type, p), resize()}`; see the header of `js/core.js`.
-  - `Core.go(name, args)` fades out (0.4 s), calls `exit()` then `enter(args)`, and fades in. Taps are ignored during the fade, and a second `go` is dropped. `Core.after(sec, fn)` timers are cleared on every scene change.
+- **Scenes** register with `Core.register(name, scene)`. A scene is `{home, clock, music, enter(args), exit(), update(dt), render(g), pointer(type, p), resize()}`; see the header of `js/core.js`.
+  - `Core.go(name, args)` fades out (0.4 s, to the cream wall color), calls `exit()` then `enter(args)`, and fades in. `args` always exists and `args.from` is the previous scene's name (`null` at start). Taps are ignored during the fade, and a second `go` is dropped. `Core.after(sec, fn)` timers are cleared on every scene change.
   - `resize()` runs on the current scene after a resize (150 ms debounce), and before `enter()` when the size changed while the scene was away.
+  - `music` (`'street'|'stars'|null`): on every scene switch the core calls `Core.snd('setPlace', music)` when it is set.
   - `pointer(type, p)`: the core captures pointers and sends `'down' | 'move' | 'up'` with `p = {id, x, y, dx, dy}`. Cancel, blur, hiding the page and scene changes send `'up'` for every finger, so nothing stays "held".
-- **Buttons:** `#home` shows when the scene's `home` is set (`body.has-home`) and goes there. `body.playing` (hides `#title`) is set in every scene but `title`.
-- **Day/night:** in `js/backdrop.js`, `CYC = { day: 75, sun: 12, night: 50, rise: 12 }` seconds. The cycle advances only in scenes with `clock: true` (the star game). Skies and tinted hills are cached and crossfaded. Mood changes call `setMood`.
-- **Storage:** `Core.load(key, fallbackKeys)` / `Core.store(key, value)`, always in try/catch with an in-memory copy. Best score in `bella.best`, saved on every point. Mute state in `bella.muted` (written by audio.js). Both also read the old `stella.*` keys as a fallback: the unicorn was first misnamed Stella.
+- **Buttons:** `#home` shows when the scene's `home` is set (`body.has-home`) and goes there: one level back, `stars` → `street` → `title`. Leaving full screen still goes to `title`. `body.playing` (hides `#title`) is set in every scene but `title`.
+- **Day/night:** in `js/backdrop.js`, `CYC = { day: 75, sun: 12, night: 50, rise: 12 }` seconds. The cycle advances only in scenes with `clock: true` (the street and the star game). Skies and tinted hills are cached and crossfaded. Mood changes call `setMood`.
+- **Storage:** `Core.load(key, fallbackKeys)` / `Core.store(key, value)`, always in try/catch with an in-memory copy. Best score in `bella.best`, saved on every point. The star total from every game in `bella.stars` (`Core.stars()`, `Core.addStars(n)`; the star game adds every point), which fills the jar; when missing it is seeded once from `bella.best`. Mute state in `bella.muted` (written by audio.js). Both also read the old `stella.*` keys as a fallback: the unicorn was first misnamed Stella.
 - **Start page** (`title`): HTML name, hero, play button and best-score medals.
-  - Only the play button starts the game: `Core.goFullscreen()`, then `Core.go('stars', {hero})`.
-  - The play finger never counts as "hold" in the star game: only fingers that go down in a scene reach it.
+  - Only the play button starts the game: `Core.goFullscreen()`, then `Core.go('street', {hero})`.
+  - The play finger never counts as "hold" in the next scene: only fingers that go down in a scene reach it.
   - `#home` goes to the scene's `home`; leaving full screen goes to `title`.
   - iPhone Safari has no page full screen. There, "Add to Home Screen" (manifest `display: fullscreen`) is how to get it.
+- **Street** (`street`): a side view `worldW = max(4 W, 5.5 M)` wide, ground line `groundY = H - max(0.14 H, 0.16 M)`. Places at fractions of `worldW`: `square` 0.12, `gate` 0.32, `house` 0.50, `bakery` 0.68, `pond` 0.88; Bella stays within 0.04..0.96.
+  - Hold the left or right half: Bella trots that way at `max(0.35 W, 0.5 M)` px/s (`clipClop` every half stride). A tap inside a place's tap target cancels the hold walk and walks her there; a new hold cancels that walk.
+  - `gate`: "Andiamo!" and `Core.go('stars', {hero})`; from `stars` she lands back by the gate. `square`: the jar jiggles and the total rises over it as stars (as the start page's medal row). `house`, `bakery`, `pond`: closed for now (a wiggle, sparkles, `door`).
+  - Bella is drawn at the start page's height `min(0.28 H, 0.55 W)` but at the star game's flying scale (`ppu`), so `Characters` keeps its 2 scales. Pose `walk` (0..1) and `stride` (walk phase, grows with the distance) are set here; `run` stays 0.
+  - The town's size unit is `U = min(M, 0.8 H, 2.2 * Bella's height)` (so the houses fit under the buttons in landscape and stay about twice Bella's height on wide screens); `Town.build(U, DPR)` runs in `resize()`. Parallax: backdrop `camX * 0.25`, the mouse balloon 0.5, the street 1, front flowers 1.25.
 - **Star game** (`stars`): modes `toFly` → `fly` → `toWash` → `wash` → `clean` → `toFly` (`off` while away).
   - **Mud:** when `st.sinceWash >= 15` a mud cloud spawns. Hitting it splashes splotches at the anchors. The rig is drawn to an offscreen canvas and the mud is drawn on it with `source-atop`. Rubbing cleans it; then +5 bonus stars.
   - **Milestones:** 10, 25, 50, then every 50 (`milestoneIn`). Each one gives confetti, a rainbow, `fanfare` and the voice "Bravissima!".

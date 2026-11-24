@@ -9,20 +9,27 @@
  *   Core.register(name, scene)
  *   Core.go(name, args)               0.4 s fade out, old.exit(), new.enter(args), fade in.
  *                                     Input is ignored during a fade; a second go() is dropped.
+ *                                     enter() always gets an args object, with args.from set
+ *                                     to the name of the scene we come from (null at start).
  *   Core.current() -> name
  *   Core.start(name)                  boot: size, Backdrop.build(), enter the first scene, loop
  *   Core.snd(name, ...args)           Sound[name](...args); audio must never break the game
  *   Core.load(key, fallbackKeys[]) -> string|null, Core.store(key, value)
  *                                     localStorage in try/catch, with an in-memory copy
  *                                     so private mode keeps values for the session
+ *   Core.stars() -> integer           the star total from every game ('bella.stars'), which
+ *                                     fills the jar. When the key is missing it is seeded
+ *                                     once from 'bella.best' ('stella.best') and stored.
+ *   Core.addStars(n)                  adds n (> 0) to the total and stores it
  *   Core.goFullscreen()               call from a tap; leaving full screen goes to 'title'
  *   Core.after(sec, fn)               timer for the current scene, cleared on scene change
  *   Core.frameMs() -> number          average render cost in ms over the last 120 frames
  *                                     (also window.__bella.frameMs, for the render test)
  *
  * Scene shape:
- *   { home: 'scene'|null,    // #home is shown when set; a click goes there
+ *   { home: 'scene'|null,    // #home is shown when set; a click goes there (one level back)
  *     clock: bool,           // whether the day/night cycle runs (Backdrop)
+ *     music: 'street'|'stars'|null,   // on every switch the core calls Sound.setPlace(music)
  *     enter(args), exit(), update(dt), render(g),
  *     pointer(type, p),      // type 'down'|'move'|'up', p = {id, x, y, dx, dy}
  *     resize() }             // called before enter() when the size changed, and on resize
@@ -42,7 +49,7 @@
   var homeBtn = document.getElementById('home');
 
   var FADE = 0.4;                 // seconds for each half of a scene change
-  var FADE_COLOR = '#e8dcf5';     // the page background: a soft lilac, never black
+  var FADE_COLOR = '#f7f1e6';     // the cream wall (Art.PAL.wall), never black
 
   var W = 0, H = 0, M = 0, DPR = 1;
   var scenes = {}, cur = null;
@@ -74,6 +81,23 @@
     try { localStorage.setItem(key, String(value)); } catch (e) { /* private mode */ }
   }
 
+  // The star total ('bella.stars'). Before the street existed only the best score
+  // was kept, so the first time the total starts from it.
+  function stars() {
+    var v = load('bella.stars');
+    if (v === null) {
+      var n = Math.max(0, parseInt(load('bella.best', ['stella.best']), 10) || 0);
+      store('bella.stars', n);
+      return n;
+    }
+    return Math.max(0, parseInt(v, 10) || 0);
+  }
+  function addStars(n) {
+    n = Math.floor(n);
+    if (!(n > 0)) return;
+    store('bella.stars', stars() + n);
+  }
+
   var reduced = false;
   try {
     var mq = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -101,14 +125,18 @@
   }
 
   function switchTo(name, args) {
+    var from = cur;
     timers.length = 0;
     pointers.forEach(function (p) { if (p.on) { p.on = false; send('up', p); } });
     call(scenes[cur], 'exit');
     cur = name;
     document.body.classList.toggle('playing', name !== 'title');
     document.body.classList.toggle('has-home', !!homeTarget());
+    if (scenes[name].music) snd('setPlace', scenes[name].music);
     ensureSized(name);
-    call(scenes[name], 'enter', args || {});
+    args = args || {};
+    args.from = from;
+    call(scenes[name], 'enter', args);
   }
 
   function go(name, args) {
@@ -327,7 +355,7 @@
   var Core = {
     register: register, go: go, start: start,
     current: function () { return cur; },
-    snd: snd, load: load, store: store,
+    snd: snd, load: load, store: store, stars: stars, addStars: addStars,
     goFullscreen: goFullscreen, after: after, frameMs: frameMs
   };
   function ro(name, get) { Object.defineProperty(Core, name, { get: get, enumerable: true }); }
