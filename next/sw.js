@@ -3,18 +3,20 @@
  * pick up the new version (it applies on the next launch). */
 'use strict';
 
-var VERSION = 'bella-next-2';
+var VERSION = 'bella-next-3';
 var FILES = [
   './',
   'index.html',
   'style.css',
   'manifest.webmanifest',
   'js/art.js',
+  'js/art-town.js',
   'js/characters.js',
   'js/audio.js',
   'js/core.js',
   'js/backdrop.js',
   'js/scenes/title.js',
+  'js/scenes/street.js',
   'js/scenes/stars.js',
   'assets/fonts/title.woff2',
   'assets/icons/favicon-16.png',

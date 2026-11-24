@@ -1,7 +1,9 @@
 /* scenes/title.js - the start page: the name (HTML #title), Bella and Bongo,
  * the play button and the best score as medal + stars. Only the play button
- * starts the game; the play tap also asks for full screen.
- * Registers the 'title' scene with window.Core (home: none, no day/night cycle).
+ * starts: it asks for full screen and goes to the street, Bella's screen box
+ * ({x, y, h}, center and height) passed on as args.hero.
+ * Registers the 'title' scene with window.Core (home: none, no day/night cycle,
+ * music: 'street').
  */
 (function () {
   'use strict';
@@ -70,6 +72,7 @@
   Core.register('title', {
     home: null,
     clock: false,
+    music: 'street',
     enter: function () {
       sync();
       best = parseInt(Core.load('bella.best', ['stella.best']), 10) || 0;
@@ -97,7 +100,7 @@
       var pb = playButton();
       if (Math.hypot(p.x - pb.x, p.y - pb.y) > pb.r * 1.35) return;
       Core.goFullscreen();
-      Core.go('stars', { hero: { x: hero.x, y: hero.y, h: hero.h } });
+      Core.go('street', { hero: { x: hero.x, y: hero.y, h: hero.h } });
     },
     resize: function () {
       sync();

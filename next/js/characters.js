@@ -18,8 +18,17 @@
  *
  *   Characters.W, Characters.H          rig frame size (rig units)
  *   Characters.prerender(pxPerUnit)     build / fetch cache (2 most recent scales)
- *   Characters.draw(g, pose, pxPerUnit) pose = {t, run, wave, happy, look, glow, face}
+ *   Characters.draw(g, pose, pxPerUnit) pose = {t, run, walk, stride, wave, happy,
+ *                                       look, glow, face}
  *   Characters.anchors                  named points (rig units, rest pose)
+ *
+ * The walk (the street): pose.walk 0..1 blends the stand into a gentle four-beat
+ * walk (diagonal pairs: near fore, far hind, far fore, near hind), with a small
+ * head nod, a tail sway and Bongo bobbing along. pose.stride is its phase: it
+ * must grow with the distance walked, 1 per 0.9 x the rig height (as the street
+ * does), so that the hooves stay planted on the ground while they carry her.
+ * Each leg steps WALK.cycles times per unit of stride. At walk = 0 the pose is
+ * exactly the stand.
  *
  * Authoring conventions: Bella is authored in "bella.png space" (657x700,
  * facing right) and mapped into the rig with R(); Bongo in "bongo.png space"
@@ -916,11 +925,19 @@
   // line and the joints can never show a seam or a gap, whatever the angles.
   var LEGS = {
     // hip (png), rest angles [upper, lower] (rad from straight down, + = forward), gallop phase
-    nf: { hip: R(478, 318), rest: [0.40, 0.10], ph: 0.0, front: true, far: false, A: 196, B: 150 },
-    ff: { hip: R(480, 336), rest: [-0.14, -0.34], ph: 0.5, front: true, far: true, A: 196, B: 150 },
-    nh: { hip: R(196, 326), rest: [0.06, 0.52], ph: Math.PI + 0.35, front: false, far: false, A: 222, B: 144 },
-    fh: { hip: R(176, 336), rest: [-0.46, -0.16], ph: Math.PI + 0.85, front: false, far: true, A: 222, B: 144 }
+    // walk: wk = when the hoof lands (fraction of the leg cycle), wx = where the
+    // step is centered (rig x), wy = how far the hip sinks, wl = how much the
+    // leg lengthens (at rest the toy's near legs are held a little short)
+    nf: { hip: R(478, 318), rest: [0.40, 0.10], ph: 0.0, front: true, far: false, A: 196, B: 150, wk: 0, wx: 672, wy: 10, wl: 1.115 },
+    ff: { hip: R(480, 336), rest: [-0.14, -0.34], ph: 0.5, front: true, far: true, A: 196, B: 150, wk: 0.5, wx: 664, wy: 0, wl: 1.07 },
+    nh: { hip: R(196, 326), rest: [0.06, 0.52], ph: Math.PI + 0.35, front: false, far: false, A: 222, B: 144, wk: 0.6, wx: 298, wy: 6, wl: 1.04 },
+    fh: { hip: R(176, 336), rest: [-0.46, -0.16], ph: Math.PI + 0.85, front: false, far: true, A: 222, B: 144, wk: 0.1, wx: 286, wy: 0, wl: 1.02 }
   };
+  // The walk. One unit of pose.stride is 0.9 x H = 990 rig units of ground, and
+  // a leg this long can carry her about 275 units per step, so each leg takes
+  // `cycles` steps per unit: duty x 990 / cycles = 2 x half, and no hoof slides.
+  var WALK = { cycles: 2, duty: 0.56, half: 138, lift: 44, gyNear: 1002, gyFar: 996, drop: 5 };
+  var WK = { a1: 0, a2: 0, a3: 0, hr: 0 };
   var PASTERN = 27;
   // half-widths along each bone, [front side, back side]
   var SHAPE_FRONT = {
@@ -959,7 +976,35 @@
   }
   function ball(p, x, y, r) { p.moveTo(x + r, y); p.arc(x, y, r, 0, TAU); p.closePath(); }
 
-  function legPose(L, ph, run, by) {
+  // Angles of one leg at phase wc (in leg cycles) of the walk, into WK: the
+  // hoof joint follows a planted-then-lifted path and the leg bends to reach it.
+  function walkLeg(L, wc, hx, hy) {
+    var q = wc - L.wk; q -= Math.floor(q);
+    var D = WALK.duty, gy = L.far ? WALK.gyFar : WALK.gyNear, ex, ey, hr, u;
+    if (q < D) {                       // planted: the ground carries it back; the heel lifts at the end
+      u = q / D;
+      hr = u > 0.78 ? (u - 0.78) / 0.22 * 0.38 : 0;
+      ex = L.wx + WALK.half * (1 - 2 * u); ey = gy - 20 * hr;
+    } else {                           // lifted: swings forward, toe down, and levels to land
+      u = (q - D) / (1 - D);
+      hr = 0.38 * (1 - u) * (1 - u) + 0.5 * Math.sin(Math.PI * u) * (1 - 0.6 * u);
+      ex = L.wx - WALK.half + 2 * WALK.half * u * u * (3 - 2 * u);
+      ey = gy - 20 * 0.38 * (1 - u) - WALK.lift * Math.sin(Math.PI * u);
+    }
+    var a3 = 0.22 - hr * 0.75;
+    var A = L.A * L.wl, B = L.B * L.wl;
+    var dx = ex - Math.sin(a3) * PASTERN - hx, dy = ey - Math.cos(a3) * PASTERN - hy;
+    var d = Math.sqrt(dx * dx + dy * dy), max = (A + B) * 0.998;
+    if (d > max) { dx *= max / d; dy *= max / d; d = max; }
+    var th = Math.atan2(dx, dy), ca = (A * A + d * d - B * B) / (2 * A * d);
+    var al = Math.acos(ca > 1 ? 1 : ca < -1 ? -1 : ca);
+    var a1 = th + (L.front ? al : -al);         // the knee bends forward, the hock backward
+    WK.a1 = a1;
+    WK.a2 = Math.atan2(hx + dx - (hx + Math.sin(a1) * A), hy + dy - (hy + Math.cos(a1) * A));
+    WK.a3 = a3; WK.hr = hr;
+  }
+
+  function legPose(L, ph, run, by, walk, wc) {
     var c = ph + L.ph, s = Math.sin(c), bump, a1, a2;
     if (L.front) {
       // reach forward almost straight, then fold the knee (cannon swings back) while recovering
@@ -974,12 +1019,19 @@
     a1 = L.rest[0] * idle + a1 * run;
     a2 = L.rest[1] * idle + a2 * run;
     var k = L.far ? 0.86 : 1, sh = L.front ? SHAPE_FRONT : SHAPE_HIND;
-    var hx = L.hip[0], hy = L.hip[1] + by;
-    var kx = hx + Math.sin(a1) * L.A, ky = hy + Math.cos(a1) * L.A;
-    var fx = kx + Math.sin(a2) * L.B, fy = ky + Math.cos(a2) * L.B;
+    var hx = L.hip[0], hy = L.hip[1] + by, A = L.A, B = L.B;
     // hoof: mostly level, toe tips down when the leg is folded or trailing; the pastern follows it
     var hr = L.front ? -a2 * 0.4 + Math.max(0, a1 - a2) * 1.1 : -a2 * 0.35 + Math.max(0, -a2) * 1.3 + Math.max(0, a2 - a1 - 0.3) * 0.5;
     var a3 = 0.22 - hr * 0.75 + a2 * 0.25;
+    if (walk > 0) {
+      hy += L.wy * walk;
+      walkLeg(L, wc, hx, L.hip[1] + by + L.wy);
+      a1 += (WK.a1 - a1) * walk; a2 += (WK.a2 - a2) * walk;
+      a3 += (WK.a3 - a3) * walk; hr += (WK.hr - hr) * walk;
+      A *= 1 + (L.wl - 1) * walk; B *= 1 + (L.wl - 1) * walk;
+    }
+    var kx = hx + Math.sin(a1) * A, ky = hy + Math.cos(a1) * A;
+    var fx = kx + Math.sin(a2) * B, fy = ky + Math.cos(a2) * B;
     var ex = fx + Math.sin(a3) * PASTERN, ey = fy + Math.cos(a3) * PASTERN;
 
     var p = new Path2D(), n1x, n1y, n2x, n2y, kcx, kcy, fcx, fcy;
@@ -1052,17 +1104,24 @@
       happy = pose.happy || 0, look = pose.look || 0;
     var glow = pose.glow === undefined ? 0.5 : pose.glow;
     var ph = t * TAU * 2.0;
+    // the walk: wc = phase in leg cycles, wp = the same as an angle, w2 = twice
+    // per cycle (once per diagonal pair of legs)
+    var walk = pose.walk || 0, wc = (pose.stride || 0) * WALK.cycles;
+    walk = walk < 0 ? 0 : walk > 1 ? 1 : walk;
+    var wp = wc * TAU, w2 = (wc - 0.3) * TAU * 2;
     var br = Math.sin(t * 1.9) * (1 - run * 0.5);
     var by = run * 9 * Math.sin(ph + 2.2) + br * 1.6;        // one soft bound per stride + breathing
+    by += walk * (WALK.drop - 2.5 * Math.cos(w2) - br * 1.2);   // walking: a little lower, up over each planted pair
     var rock = run * 0.035 * Math.sin(ph + 0.4);             // nose lifts as the forelegs reach out
+    rock += walk * 0.01 * Math.sin(w2 + 0.8);
     var k, bl = Math.max(blink(t, 1.7), happy);
 
     g.save();
     g.lineJoin = 'round'; g.lineCap = 'round';
     if (rock) { g.translate(460, 720); g.rotate(-rock); g.translate(-460, -720); }
 
-    var lFF = legPose(LEGS.ff, ph, run, by), lFH = legPose(LEGS.fh, ph, run, by),
-      lNF = legPose(LEGS.nf, ph, run, by), lNH = legPose(LEGS.nh, ph, run, by);
+    var lFF = legPose(LEGS.ff, ph, run, by, walk, wc), lFH = legPose(LEGS.fh, ph, run, by, walk, wc),
+      lNF = legPose(LEGS.nf, ph, run, by, walk, wc), lNH = legPose(LEGS.nh, ph, run, by, walk, wc);
 
     // --- sprites in z order: [sprite, x, y, rot]
     var items = [];
@@ -1073,6 +1132,11 @@
     var taB = run * (0.2 + 0.1 * tw) + 0.03 * ts;
     var taP = run * (0.13 + 0.09 * Math.sin(ph - 1.3)) + 0.03 * Math.sin(t * 1.3 - 0.5);
     var taT = run * (0.08 + 0.09 * Math.sin(ph - 1.7)) + 0.03 * Math.sin(t * 1.3 - 0.9);
+    if (walk) {                                              // it swings once per step cycle, the bunches trailing each other
+      taB += walk * (0.03 + 0.07 * Math.sin(wp - 0.6));
+      taP += walk * (0.02 + 0.055 * Math.sin(wp - 1.1));
+      taT += walk * (0.01 + 0.045 * Math.sin(wp - 1.6));
+    }
     items.push([P.tailClear.s, P.tailClear.x, P.tailClear.y + by, taB]);
     var bodyItem = [P.body.s, P.body.x, P.body.y + by, 0];
     items.push(bodyItem);
@@ -1080,7 +1144,8 @@
     // the mane shares the neck's pivot and angle (plus a breath of sway: its
     // roots lie well inside the neck, so the crest never opens)
     var na = -look * 0.08 + run * (0.05 * Math.sin(ph + 1.4) + 0.03) + 0.014 * Math.sin(t * 1.3 + 0.5) - happy * 0.03;
-    var ma = na + 0.018 * run * Math.sin(ph - 0.6) + 0.008 * Math.sin(t * 1.7);
+    na += walk * (0.012 + 0.03 * Math.sin(w2 + 0.5));        // the walk's nod: down as each front hoof takes her weight
+    var ma = na + 0.018 * run * Math.sin(ph - 0.6) + 0.008 * Math.sin(t * 1.7) + 0.012 * walk * Math.sin(w2 - 0.5);
     items.push([P.mane.s, PN[0], PN[1] + by, ma]);
     items.push([P.tailPink.s, P.tailPink.x, P.tailPink.y + by, taP]);
     items.push([P.tailTop.s, P.tailTop.x, P.tailTop.y + by, taT]);
@@ -1090,9 +1155,9 @@
     items.push(neckItem);
 
     // Bongo rides in profile: the whole bear sways around his seat, limbs and head follow loosely
-    var bounce = -run * 6 * (0.5 + 0.5 * Math.sin(ph + 3.4));
+    var bounce = -run * 6 * (0.5 + 0.5 * Math.sin(ph + 3.4)) - walk * 3.5 * (0.5 + 0.5 * Math.sin(w2 + 2.4));
     var bo = by + bounce - br * 0.8;
-    var sway = 0.02 * Math.sin(t * 1.25) + run * 0.05 * Math.sin(ph + 2.6) - run * 0.05;
+    var sway = 0.02 * Math.sin(t * 1.25) + run * 0.05 * Math.sin(ph + 2.6) - run * 0.05 + walk * 0.022 * Math.sin(w2 + 1.2);
     var cs = Math.cos(sway), sn = Math.sin(sway);
     function bItem(part, rot, px, py) {
       var dx = (px === undefined ? part.x : px) - SEAT[0], dy = (py === undefined ? part.y : py) - SEAT[1];
@@ -1103,11 +1168,11 @@
     face = Math.max(face < 0 ? 0 : face > 1 ? 1 : face, Math.min(1, (pose.wave || 0) * 3));
     var fs = smoothstep(face);
     var smile = Math.max(happy, wave * 0.7, pose.face === undefined ? fs * 0.6 : 0);
-    var arm = 0.04 * Math.sin(t * 1.7) + run * 0.07 * Math.sin(ph + 1.6) - sway * 0.8 - happy * 0.3;
+    var arm = 0.04 * Math.sin(t * 1.7) + run * 0.07 * Math.sin(ph + 1.6) + walk * 0.03 * Math.sin(w2 + 0.6) - sway * 0.8 - happy * 0.3;
     var armW = -1.65 + 0.28 * Math.sin(t * 10);
     arm += (armW - arm) * wave;
-    var ha = 0.03 * Math.sin(t * 1.6) + run * 0.05 * Math.sin(ph + 1.2) - happy * 0.04 - sway * 0.5;
-    var lg = 0.05 * Math.sin(t * 1.5 + 0.6) + run * 0.14 * Math.sin(ph + 0.9);
+    var ha = 0.03 * Math.sin(t * 1.6) + run * 0.05 * Math.sin(ph + 1.2) + walk * 0.03 * Math.sin(w2 + 0.2) - happy * 0.04 - sway * 0.5;
+    var lg = 0.05 * Math.sin(t * 1.5 + 0.6) + run * 0.14 * Math.sin(ph + 0.9) + walk * 0.07 * Math.sin(w2 - 0.4);
     items.push(bItem(P.bTail, 0.12 * Math.sin(t * 2.2) + run * 0.25 * Math.sin(ph + 2.2)));
     items.push(bItem(P.bArmFar, arm * 0.4 - 0.16 + run * 0.06 * Math.sin(ph + 2.4), P.bArmFar.x + 16, P.bArmFar.y - 16));
     items.push(bItem(P.bLeg, lg));
