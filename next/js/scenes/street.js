@@ -4,14 +4,14 @@
  * Moving: hold the left or right half of the screen and Bella trots that way
  * (clip-clop); let go and she stops. Tapping a place makes her walk there:
  *   gate    (sky gate, star sign)  -> "Andiamo!" and the star game
+ *   bakery  (cake sign)            -> a door chime and the bakery
  *   square  (the star jar)         -> the jar jiggles, the total rises over it as stars
- *   house, bakery (cake sign), pond (octopus sign) -> closed for now: a wiggle,
- *                                     sparkles and a door chime
+ *   house, pond (octopus sign)     -> closed for now: a wiggle, sparkles and a door chime
  * A tap on a place cancels any hold walk; a new hold cancels the walk to a place.
  *
  * Registers the 'street' scene with window.Core (home: 'title', day/night cycle
  * on, music: 'street'). enter({from}): from 'stars' Bella lands by the sky gate,
- * otherwise she starts at 0.22 of the street.
+ * from 'bakery' at the bakery door, otherwise she starts at 0.22 of the street.
  * Draws Bella at the star game's flying scale (Characters keeps 2 cached scales).
  * Pose: run 0, walk 0..1 (eased with movement), stride (walk phase in cycles,
  * grows with distance walked so the hooves don't slide).
@@ -153,12 +153,17 @@
   function arrive(i) {
     var p = PLACES[i];
     st.target = null;
-    if (p.kind === 'gate') {
+    if (p.kind === 'gate' || p.kind === 'bakery') {
       if (entering) return;
       entering = true;
-      st.dir = 1;
-      snd('say', 'andiamo');
-      Core.go('stars', { hero: heroBox() });
+      if (p.kind === 'gate') {
+        st.dir = 1;
+        snd('say', 'andiamo');
+        Core.go('stars', { hero: heroBox() });
+      } else {
+        snd('door');
+        Core.go('bakery');
+      }
       Core.after(1.2, function () { entering = false; });   // only if the go was dropped
     } else if (p.kind === 'square') {
       total = Core.stars();
@@ -394,8 +399,8 @@
     music: 'street',
     enter: function (args) {
       sync();
-      var gate = place('gate');
-      st.x = args && args.from === 'stars' ? placeX(gate) : START_F * L.ww;
+      var from = args && args.from;
+      st.x = from === 'stars' ? placeX(place('gate')) : from === 'bakery' ? standX(place('bakery')) : START_F * L.ww;
       st.dir = 1; st.target = null; st.walking = false; st.jarShow = 0; st.jiggle = 0;
       st.camX = camGoal();
       pose.walk = 0;

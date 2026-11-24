@@ -21,6 +21,13 @@
  *   Characters.draw(g, pose, pxPerUnit) pose = {t, run, walk, stride, wave, happy,
  *                                       look, glow, face}
  *   Characters.anchors                  named points (rig units, rest pose)
+ *   Characters.drawBongo(g, pose, pxPerUnit)   Bongo on his own, standing on two
+ *                                       legs, facing right, his feet's bottom
+ *                                       center at the origin, BONGO_H rig units
+ *                                       tall; pose = {t, walk, stride, carry, face}.
+ *                                       It reuses the cached part sprites (see
+ *                                       drawBongo below) and builds no new scale.
+ *   Characters.BONGO_H                  his standing height (rig units)
  *
  * The walk (the street): pose.walk 0..1 blends the stand into a gentle four-beat
  * walk (diagonal pairs: near fore, far hind, far fore, near hind), with a small
@@ -867,6 +874,7 @@
       furShape(g, pts, 0.18, 44, { tuft: 14 });
     });
     P.bLeg = bPart(ppu, [304, 506], [236, 474, 414, 680], function (g) { furShape(g, LEG_S, 0.17, 41); });
+    P.bLegFar = bPart(ppu, [304, 506], [236, 474, 414, 680], function (g) { furShape(g, LEG_S, 0.17, 42, { far: true }); });   // drawBongo only
     P.bTorso = bPart(ppu, [256, 530], [132, 214, 384, 572], drawBongoTorsoSide);
     P.bHeadS = bPart(ppu, HEAD_PIV, [128, -6, 456, 276], drawBongoHeadSide);
     P.bHead = bPart(ppu, [256, 236], [70, 14, 442, 274], drawBongoHead);       // front face, for looking at the player
@@ -1216,6 +1224,83 @@
     g.restore();
   }
 
+  // ---- Bongo on his own (the bakery): standing on two legs, in profile, facing
+  // right. It places the same cached part sprites as the rider (plus the far leg),
+  // from the sharpest scale already in the cache: it never builds a scale itself
+  // unless the cache is empty. Origin: the ground under his feet, bottom center;
+  // he is BONGO_H rig units tall.
+  //   pose = {t, walk, stride, carry, face}
+  //     walk    0..1 blends the stand into a little two-legged toddle
+  //     stride  its phase: 1 per 0.8 x his height walked (BONGO_STEPS steps cycles)
+  //     carry   0..1 both arms held out in front, as under a tray
+  //     face    0 profile, 1 turned to the player, undefined: he glances over
+  //             now and then, as on Bella's back
+  var STAND = { cx: 262, gy: 683, hipNear: [292, 512], hipFar: [316, 510], leg: 0.42 };
+  var BONGO_H = 464, BONGO_STEPS = 2;
+  var SO = B(STAND.cx, STAND.gy);             // the standing origin, in the rider's rig coords
+
+  function sharpest(ppu) {
+    var best = null;
+    for (var i = 0; i < cache.length; i++) if (!best || cache[i].ppu > best.ppu) best = cache[i];
+    return best || prerender(ppu);
+  }
+
+  function drawBongo(g, pose, ppu) {
+    var P = sharpest(ppu).P;
+    pose = pose || {};
+    var t = pose.t || 0, walk = pose.walk || 0, carry = smoothstep(pose.carry || 0);
+    walk = walk < 0 ? 0 : walk > 1 ? 1 : walk;
+    var wp = (pose.stride || 0) * BONGO_STEPS * TAU, sw = Math.sin(wp), cw = Math.cos(wp);
+    var br = Math.sin(t * 1.9);
+    var by = -br * 1.2 - walk * 3.5 * (0.5 - 0.5 * Math.cos(2 * wp));     // breathing; up over each planted foot
+    var sway = 0.015 * Math.sin(t * 1.25) + walk * 0.035 * sw + carry * 0.03;
+    var face = pose.face === undefined ? autoFace(t) : pose.face;
+    face = face < 0 ? 0 : face > 1 ? 1 : face;
+    var fs = smoothstep(face);
+    var smile = Math.max(0.35, fs * 0.6, carry * 0.6);
+    var bl = blink(t, 1.7);
+    var x, y;
+
+    g.save();
+    g.lineJoin = 'round'; g.lineCap = 'round';
+    g.translate(-SO[0], -SO[1]);
+    // the legs: straight down from the cuffs of the shorts, swinging from the hips
+    var hf = B(STAND.hipFar[0], STAND.hipFar[1]), hn = B(STAND.hipNear[0], STAND.hipNear[1]);
+    place(g, P.bLegFar.s, hf[0], hf[1] - walk * 7 * Math.max(0, -cw), STAND.leg + walk * 0.3 * sw);
+    place(g, P.bLeg.s, hn[0], hn[1] - walk * 7 * Math.max(0, cw), STAND.leg - walk * 0.3 * sw);
+    // everything above the hips leans and bobs together
+    x = hn[0]; y = hn[1];
+    g.translate(x, y + by); g.rotate(sway); g.translate(-x, -y);
+    var hang = 1.0 + 0.04 * Math.sin(t * 1.7) + walk * 0.26 * sw;
+    var arm = hang + (-0.08 - hang) * carry, armFar = 0.9 - walk * 0.26 * sw;
+    armFar += (-0.2 - armFar) * carry;
+    place(g, P.bTail.s, P.bTail.x, P.bTail.y, 0.1 * Math.sin(t * 2.2) + walk * 0.2 * sw);
+    place(g, P.bArmFar.s, P.bArmFar.x + 16, P.bArmFar.y - 10, armFar);
+    place(g, P.bTorso.s, P.bTorso.x, P.bTorso.y, 0);
+    // the two heads share the neck pivot, as on Bella's back
+    var hp = B(HEAD_PIV[0], HEAD_PIV[1]);
+    var ha = 0.03 * Math.sin(t * 1.6) + walk * 0.03 * Math.sin(2 * wp + 0.4) - sway * 0.6;
+    var sq = 1 - 0.16 * Math.sin(Math.PI * fs);
+    if (fs < 0.999) {
+      g.save();
+      g.translate(hp[0], hp[1]); g.rotate(ha + 0.1 * fs); g.scale(sq, 1);
+      g.globalAlpha = Math.min(1, 2 * (1 - fs));
+      g.drawImage(P.bHeadS.s, P.bHeadS.s.ox, P.bHeadS.s.oy, P.bHeadS.s.lw, P.bHeadS.s.lh);
+      bongoFaceSide(g, bl, smile);
+      g.restore();
+    }
+    if (fs > 0.001) {
+      g.save();
+      g.translate(hp[0] - 14 * BK * fs, hp[1]); g.rotate(ha * 0.8 + 0.06 * (1 - fs)); g.scale(sq, 1);
+      g.globalAlpha = Math.min(1, 2 * fs);
+      g.drawImage(P.bHead.s, P.bHead.s.ox, P.bHead.s.oy, P.bHead.s.lw, P.bHead.s.lh);
+      bongoFace(g, bl, smile);
+      g.restore();
+    }
+    place(g, P.bArm.s, P.bArm.x, P.bArm.y, arm);
+    g.restore();
+  }
+
   function hueIndex(t, off) {
     var p = ((t / 12 + off / GLOW_STEPS) % 1 + 1) % 1 * GLOW_STEPS;
     var i = Math.floor(p);
@@ -1421,6 +1506,7 @@
   window.Characters = {
     W: W, H: H, anchors: A,
     prerender: function (ppu) { prerender(ppu); },
-    draw: draw
+    draw: draw,
+    BONGO_H: BONGO_H, drawBongo: drawBongo
   };
 })();
