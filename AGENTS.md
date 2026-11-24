@@ -22,7 +22,7 @@ Bella, a pink/mauve unicorn toy, flies with Bongo, a cream teddy, on her back an
 - **It must work from `file://`.** So: no `fetch()` of local files, and no `getImageData` on canvases (they can be tainted). The service worker registers only over http(s), and the game must work without it.
 - **Audio must never break the game.** The core and the scenes call audio only through `Core.snd(name, ...)`, which wraps everything in try/catch.
 - **Every `localStorage` access is inside try/catch** (private mode can throw).
-- **Style:** soft watercolor, pastel palette (pink, lilac, sky blue, star yellow, white; see `Art.PAL`), round shapes only, nothing sharp or scary, big glowing pulsing stars.
+- **Style (the bedroom-wall mural):** dark slightly uneven ink outlines (`Art.ink`), colored-pencil fill with a visible grain (`Art.pencil`), the mural palette on a cream wall (`Art.PAL`: wall, river, leaf, roof, orange, mushroom, plum, cloud, moon, star, ink), round shapes only, nothing sharp or scary, big glowing pulsing stars. The old pastel keys of `Art.PAL` still exist but the look is the mural.
 - **The characters must look like the real toys and must smile.** The owner rejected "grumpy" faces.
 
 ## Run and test
@@ -38,7 +38,9 @@ python3 -m http.server 8000          # needed to test the service worker / phone
 cd tests && npm install && npm test   # headless system Chrome (CHROME_PATH to override), about 70 s
 ```
 
-`tests/helpers.js` has the static server and page helpers; `tests/game.test.js` plays the game through the `window.__bella` hook at 390x844 and 844x390 and asserts no console errors. `tests/render.test.js` saves a screenshot of every look to `tests/out/` (git-ignored; look at them after any art change) and asserts the canvas render cost stays under 8 ms per frame (`__bella.frameMs()`).
+`tests/helpers.js` has the static server and page helpers; `tests/game.test.js` plays the game through the `window.__bella` hook at 390x844 and 844x390 and asserts no console errors. `tests/render.test.js` saves a screenshot of every look (day, sunset, night, wash, milestone, character sheet, start page) to `tests/out/` (git-ignored; `RENDER_OUT` overrides the folder) and checks the render budget (average canvas cost per frame, `BUDGET_MS`). Look at those screenshots by eye after any art change.
+
+The test `live game and preview stay separate` serves the `main` worktree with `next/` inside. It looks for it at `.worktrees/main` (or `MAIN_WORKTREE`) and is skipped, with a message, if that folder is missing. `tests/render.test.js` saves a screenshot of every look to `tests/out/` (git-ignored; look at them after any art change) and asserts the canvas render cost stays under 8 ms per frame (`__bella.frameMs()`).
 
 Other ways:
 
@@ -142,6 +144,17 @@ Script order in `index.html` matters: `js/art.js`, `js/characters.js`, `js/audio
 - **Bump `VERSION` in `sw.js`** (for example `bella-v3` → `bella-v4`) whenever any cached file changes. Add new game files to `FILES` in `sw.js`, or they won't work offline. Phones pick up the new version on the next launch.
 - **Cache-bust after a deploy when checking the live site.** In the page, `fetch()` each changed file with `{ cache: 'reload' }`, then `location.reload()`.
   - A `?v=N` query alone is not enough. Once the service worker is installed, it matches with `ignoreSearch: true`. Bump `VERSION` too, or unregister the worker in DevTools.
+
+## Preview flow (the `town` work and `/next/`)
+
+The fairy town work lives on branch `town`; `main` is the live game and stays as it is. To let the owner look at `town` on a phone without touching the live game, a copy of it is published at https://gsanchietti.github.io/unicorn/next/.
+
+1. `git worktree add .worktrees/main main` (once; `.worktrees/` is git-ignored on `town`). Never switch the main checkout away from `town`.
+2. `tools/publish-preview.sh . .worktrees/main`. It replaces `next/` on `main` with the game files only (`index.html`, `style.css`, `manifest.webmanifest`, `sw.js`, `js/`, `assets/icons/`, `assets/fonts/`; no photos, tools or tests) and renames the copied manifest app to "Bella e Bongo (prova)". It does not commit.
+3. Commit in `.worktrees/main` (`chore: publish fairy town preview at /next/`) and push both branches, only when the owner asks.
+4. The preview has its own service worker (`next/sw.js`, scope `/unicorn/next/`) and its own cache `bella-next-N` (`VERSION` in `sw.js` on `town`; bump it when a cached file changes). Both sw delete only their own old caches (`bella-next-*` and `bella-v*`), because the live game and the preview share one origin, and so share `localStorage` (`bella.best`, `bella.muted`).
+5. The live `sw.js` on `main` has a guard at the top of its `fetch` handler that ignores `/next/` requests, and its `VERSION` was bumped to `bella-v4` so phones pick the guard up. Do not touch the live game otherwise.
+6. When `town` replaces the live game later, its `sw.js` `VERSION` and cache prefix go back to the `bella-v` series.
 
 ## Asset tools
 

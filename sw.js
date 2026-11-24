@@ -3,7 +3,7 @@
  * pick up the new version (it applies on the next launch). */
 'use strict';
 
-var VERSION = 'bella-v3';
+var VERSION = 'bella-next-1';
 var FILES = [
   './',
   'index.html',
@@ -31,9 +31,10 @@ self.addEventListener('install', function (e) {
   }).then(function () { return self.skipWaiting(); }));
 });
 
+// Only delete our own old caches: the live game and the preview share one origin.
 self.addEventListener('activate', function (e) {
   e.waitUntil(caches.keys().then(function (keys) {
-    return Promise.all(keys.filter(function (k) { return k !== VERSION; }).map(function (k) { return caches.delete(k); }));
+    return Promise.all(keys.filter(function (k) { return k !== VERSION && k.indexOf('bella-next-') === 0; }).map(function (k) { return caches.delete(k); }));
   }).then(function () { return self.clients.claim(); }));
 });
 

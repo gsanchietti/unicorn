@@ -232,3 +232,69 @@ test('hidden during fade resumes cleanly', () => single(async (g) => {
   await waitFor(page, () => window.__bella.scene() === 'title', 2000);
   assert.strictEqual(await ev(page, () => window.__resumes), 1, 'audio resumed');
 }));
+
+// ---------------------------------------------------------------- preview next to the live game
+// The live game (main) and the preview (main's next/) share one origin. Each must keep
+// its own service worker and cache, and the preview must not touch the live save data.
+// The folder is the `main` worktree (override with MAIN_WORKTREE) with next/ inside.
+
+const MAIN_DIR = process.env.MAIN_WORKTREE || path.resolve(__dirname, '..', '.worktrees', 'main');
+
+test('live game and preview stay separate', async (t) => {
+  if (!require('fs').existsSync(path.join(MAIN_DIR, 'index.html'))) {
+    t.skip('main worktree not found at ' + MAIN_DIR + ' (git worktree add .worktrees/main main, or set MAIN_WORKTREE)');
+    return;
+  }
+  const srv = await startServer(MAIN_DIR);
+  // openGame() waits for the new __bella.scene, which the live game lacks, so open the page by hand.
+  const ctx = await browser.createBrowserContext();
+  const page = await ctx.newPage();
+  const g = { page, ctx, errors: [] };
+  page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') g.errors.push('console.' + m.type() + ': ' + m.text()); });
+  page.on('pageerror', (e) => g.errors.push('pageerror: ' + e.message));
+  await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 2, hasTouch: true, isMobile: true });
+  const ready = async () => {
+    await ev(page, () => navigator.serviceWorker.ready.then(() => true));
+    await page.reload({ waitUntil: 'load' });
+    await page.waitForFunction(() => window.__bella, { timeout: 3000 });
+  };
+  const swUrl = () => ev(page, () => navigator.serviceWorker.controller && navigator.serviceWorker.controller.scriptURL);
+  try {
+    // Live game at /.
+    await page.goto(srv.url, { waitUntil: 'load' });
+    await ready();
+    assert.ok((await swUrl() || '').endsWith('/sw.js') && !(await swUrl()).includes('/next/'), 'live sw: ' + await swUrl());
+    assert.strictEqual(await ev(page, () => typeof window.Core), 'undefined', 'live game has no Core');
+    assert.ok(await ev(page, () => !!window.__bella.st), 'live game has __bella.st');
+    await ev(page, () => localStorage.setItem('bella.best', '77'));
+
+    // Preview at /next/.
+    await page.goto(srv.url + 'next/', { waitUntil: 'load' });
+    await page.waitForFunction(() => window.__bella && window.__bella.scene, { timeout: 3000 });
+    await ready();
+    await page.waitForFunction(() => window.__bella && window.__bella.scene, { timeout: 3000 });
+    assert.ok((await swUrl() || '').endsWith('/next/sw.js'), 'preview sw: ' + await swUrl());
+    assert.strictEqual(await ev(page, () => typeof window.Core), 'object', 'preview has Core');
+    await play(g);
+    await ev(page, () => window.__bella.stars.addPoints(5));
+
+    // Both caches exist.
+    const keys = await ev(page, () => caches.keys());
+    assert.ok(keys.includes('bella-v4') && keys.includes('bella-next-1'), 'caches: ' + keys);
+
+    // Shared localStorage: the preview must not reset the live best score.
+    assert.strictEqual(await ev(page, () => localStorage.getItem('bella.best')), '77');
+
+    // Offline: both still reload.
+    await page.setOfflineMode(true);
+    await page.goto(srv.url + 'next/', { waitUntil: 'load' });
+    assert.strictEqual(await ev(page, () => typeof window.Characters), 'object', 'preview offline');
+    assert.strictEqual(await ev(page, () => typeof window.Core), 'object');
+    await page.goto(srv.url, { waitUntil: 'load' });
+    await page.waitForFunction(() => window.__bella, { timeout: 3000 });
+    assert.strictEqual(await ev(page, () => typeof window.Core), 'undefined', 'live offline still old game');
+    assert.ok(await ev(page, () => !!window.__bella.st));
+    assert.strictEqual(await ev(page, () => localStorage.getItem('bella.best')), '77');
+    assert.deepStrictEqual(g.errors.filter((e) => !/ERR_INTERNET_DISCONNECTED/.test(e)), []);
+  } finally { await g.ctx.close(); await srv.close(); }
+});

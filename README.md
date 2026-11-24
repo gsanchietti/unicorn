@@ -67,7 +67,19 @@ The voice cues use the browser's Italian voice. To use your own recordings, put 
 
 ## Update the offline copy
 
-Phones keep the game files for offline play (`sw.js`). After changing any file, bump `VERSION` in `sw.js` (for example `bella-v3` → `bella-v4`), or installed phones keep the old version. They pick up the new one on the next launch after it's online. New files must also be added to `FILES` in `sw.js`.
+Phones keep the game files for offline play (`sw.js`). After changing any file, bump `VERSION` in `sw.js` (for example `bella-v4` → `bella-v5`; the preview uses `bella-next-N`), or installed phones keep the old version. They pick up the new one on the next launch after it's online. New files must also be added to `FILES` in `sw.js`.
+
+## Test it
+
+```sh
+cd tests && npm install && npm test    # headless Chrome, about 70 s
+```
+
+`tests/game.test.js` plays the game and checks the scenes, touch, saving, offline play and that the live game and the preview stay separate (it needs a `main` worktree at `.worktrees/main`, or `MAIN_WORKTREE`). `tests/render.test.js` saves screenshots of every look to `tests/out/` and checks the drawing cost per frame.
+
+## Preview the next version
+
+The new look is developed on branch `town`. `tools/publish-preview.sh <town-worktree> <main-worktree>` copies the game files into `next/` on `main`, so it is playable at https://gsanchietti.github.io/unicorn/next/ next to the live game. The preview has its own offline copy (`bella-next-N` in `sw.js`) and its own home-screen name, "Bella e Bongo (prova)".
 
 ## Files
 
@@ -84,6 +96,8 @@ Phones keep the game files for offline play (`sw.js`). After changing any file, 
 - `assets/fonts/title.woff2`: the start page name, a few letters of Comfortaa Bold (SIL Open Font License, see `assets/fonts/OFL.txt`)
 - `assets/photos/`: photos of the real toys; `assets/*.png`: their cut-outs, used as drawing references
 - `tools/cutout.py`: background removal for new photos
+- `tools/publish-preview.sh`: copies the game files into `next/` on `main`
+- `tests/`: the automated tests (`game.test.js`, `render.test.js`, `helpers.js`)
 
 ## License
 
