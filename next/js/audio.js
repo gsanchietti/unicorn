@@ -5,8 +5,8 @@
  *
  * Public API: window.Sound = { init, isMuted, setMuted, toggleMute, star,
  *   bubble, boing, splat, fanfare, sparkle, clipClop, door, ding, squish, plop,
- *   bell, munch, say, setMood, getMood, setPlace, suspend, resume }
- *   setPlace('street'|'bakery'|'stars') picks the DAY song of a place; setMood('day'|
+ *   bell, munch, pop, flip, giggle, say, setMood, getMood, setPlace, suspend, resume }
+ *   setPlace('street'|'bakery'|'pond'|'stars') picks the DAY song of a place; setMood('day'|
  *   'night') still switches to the shared lullaby. Both crossfade at a bar line.
  *
  * Graph:   sfxBus ----\
@@ -291,6 +291,45 @@
     tick(ctx, dest, t, step % 2 === 1 ? 0.04 : 0.02);
   };
 
+  // ---- POND song: 16-bar floaty loop, 88 bpm, C major pentatonic. Same family, but
+  // dreamier: soft bells with a gentle detuned shimmer, one long bass note per bar,
+  // and tiny quiet bubbles drifting by instead of a beat.
+  var POND_BPM = 88, PEIGHTH = 60 / POND_BPM / 2;
+  var P_A1 = [7, _, _, 8, _, 7, _, 5], P_A2 = [5, _, 6, _, 7, _, _, _],
+      P_A3 = [8, _, 7, _, 5, _, 6, _], P_A4 = [4, _, 5, _, 7, _, _, _],
+      P_B1 = [9, _, _, 8, _, 7, _, 8], P_B2 = [9, _, 10, _, 9, _, _, _],
+      P_B3 = [8, _, 7, _, 6, _, 5, _], P_B4 = [5, _, 4, _, 5, _, _, _];
+  var POND_MELODY = [P_A1, P_A2, P_A3, P_A4,  P_A1, P_A2, P_A3, P_B4,
+                     P_B1, P_B2, P_B3, P_A4,  P_A1, P_A2, P_A3, P_B4];
+  var POND_ROOT = [-12, -19, -15, -17,  -12, -19, -15, -17,  -19, -12, -15, -17,  -12, -19, -15, -12];
+  var POND_BUBBLE = [0, 3, 5, 2, 6, 1, 4, 7];   // which step a bubble drifts by, per bar (mod 8)
+
+  function floatBell(ctx, dest, t, f, peak) {           // soft bell, slow attack, tiny detuned shimmer
+    tone(ctx, dest, t, { f: f, peak: peak, attack: 0.012, dur: 0.9 });
+    tone(ctx, dest, t, { f: f * 1.004, peak: peak * 0.35, attack: 0.02, dur: 0.8 });
+    tone(ctx, dest, t, { f: f * 3, peak: peak * 0.1, attack: 0.006, dur: 0.25 });
+  }
+
+  /** One eighth-note slot (0..127) of the 16-bar pond loop. */
+  Synth.pondSlot = function (ctx, dest, t, slot, pass) {
+    var bar = Math.floor(slot / 8), step = slot % 8, alt = (pass % 2) === 1;
+    var m = POND_MELODY[bar][step];
+    if (m >= 0) {
+      floatBell(ctx, dest, t, semis(LADDER_SEMI(m)), (step % 4 === 0) ? 0.40 : 0.32);
+      if (alt && bar >= 8 && bar < 12) floatBell(ctx, dest, t, semis(LADDER_SEMI(m + 2)), 0.10);
+    }
+    if (step === 0) {                                   // one long round bass note per bar
+      tone(ctx, dest, t, { f: semis(POND_ROOT[bar]), peak: 0.40, attack: 0.02, dur: PEIGHTH * 7 });
+      tone(ctx, dest, t, { type: 'triangle', f: semis(POND_ROOT[bar] + 12), peak: 0.07, attack: 0.02, dur: PEIGHTH * 3, lp: 800 });
+    }
+    if (step === 4 && (bar % 2) === 1)                  // a soft fifth sway every other bar
+      tone(ctx, dest, t, { f: semis(POND_ROOT[bar] + 7), peak: 0.16, attack: 0.02, dur: PEIGHTH * 3 });
+    if (step === (POND_BUBBLE[bar % 8] + (alt ? 3 : 0)) % 8) {   // a tiny bubble drifts by
+      var f = semis(LADDER_SEMI(12 + ((bar * 3 + step) % 5)));
+      tone(ctx, dest, t, { f: f, f2: f * 1.5, glide: 0.06, peak: 0.07, attack: 0.008, dur: 0.12 });
+    }
+  };
+
   /** Soft two-tap hoof step, ~0.12 s. k alternates 0/1: second foot a little higher. */
   Synth.clipClop = function (ctx, dest, t, k) {
     var up = ((k | 0) % 2) ? 1.12 : 1, wob = 1 + (Math.random() - 0.5) * 0.06;
@@ -393,12 +432,57 @@
     tone(ctx, dest, t + 0.3, { f: pent(8), peak: 0.05, attack: 0.02, dur: 0.1 });   // contented "mm"
   };
 
+
+  // ---- Pond sounds (all soft and short).
+  /** Soft bubble pop, ~0.12 s. rnd in [0,1) picks one of a pentatonic set of pitches plus
+   *  a little drift, so a stream of pops never repeats exactly. */
+  Synth.pop = function (ctx, dest, t, rnd) {
+    var r = (rnd === undefined) ? Math.random() : rnd;
+    var f = pent(7 + Math.floor(r * 5) % 5) * (1 + (r * 7 % 1) * 0.04);
+    tone(ctx, dest, t, { f: f, f2: f * 0.6, glide: 0.05, peak: 0.12, attack: 0.004, dur: 0.1 });
+    tone(ctx, dest, t, { f: f * 2.5, f2: f * 1.6, glide: 0.03, peak: 0.03, attack: 0.003, dur: 0.05 });
+    var src = ctx.createBufferSource(), bp = ctx.createBiquadFilter(), g = ctx.createGain();
+    src.buffer = noiseBuffer(ctx);
+    bp.type = 'bandpass'; bp.frequency.value = 2200; bp.Q.value = 1.2;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(0.03, t + 0.004);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.04);
+    src.connect(bp); bp.connect(g); g.connect(dest);
+    src.start(t, Math.random() * 0.5); src.stop(t + 0.06);
+  };
+  /** Squishy "fwump" that rises in pitch (~0.3 s). */
+  Synth.flip = function (ctx, dest, t) {
+    tone(ctx, dest, t, { f: 180, f2: 460, glide: 0.22, peak: 0.2, attack: 0.02, dur: 0.3, lp: 1200 });
+    tone(ctx, dest, t, { type: 'triangle', f: 270, f2: 690, glide: 0.22, peak: 0.07, attack: 0.02, dur: 0.26, lp: 1400 });
+    var src = ctx.createBufferSource(), lp = ctx.createBiquadFilter(), g = ctx.createGain();
+    src.buffer = noiseBuffer(ctx);
+    lp.type = 'lowpass'; lp.Q.value = 1.2;
+    lp.frequency.setValueAtTime(400, t);
+    lp.frequency.exponentialRampToValueAtTime(1500, t + 0.2);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(0.09, t + 0.03);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.28);
+    src.connect(lp); lp.connect(g); g.connect(dest);
+    src.start(t, Math.random() * 0.5); src.stop(t + 0.3);
+  };
+  /** Octopus giggle, ~0.6 s: six bright chirps, each rising, the pattern bobbing up and down. */
+  Synth.giggle = function (ctx, dest, t) {
+    var base = [0, 2, 1, 3, 2, 4];
+    for (var i = 0; i < base.length; i++) {
+      var tt = t + i * 0.085, f = pent(10 + base[i]);
+      tone(ctx, dest, tt, { f: f, f2: f * 1.25, glide: 0.05, peak: 0.13, attack: 0.008, dur: 0.1 });
+      tone(ctx, dest, tt, { f: f * 2, f2: f * 2.5, glide: 0.05, peak: 0.03, attack: 0.008, dur: 0.07 });
+    }
+    bell(ctx, dest, t + 0.5, pent(14), 0.08, 0.3);        // a last little sparkle
+  };
+
   Synth.musicSlot = Synth.nightSlot;   // backwards-compatible name
   var SONGS = {
     night: { slots: 64, step: EIGHTH, fn: Synth.nightSlot, gain: 1 },
     day:   { slots: 128, step: DEIGHTH, fn: Synth.daySlot, gain: 0.7 },
     street: { slots: 128, step: SEIGHTH, fn: Synth.streetSlot, gain: 0.7 },
-    bakery: { slots: 128, step: BEIGHTH, fn: Synth.bakerySlot, gain: 0.7 }
+    bakery: { slots: 128, step: BEIGHTH, fn: Synth.bakerySlot, gain: 0.7 },
+    pond: { slots: 128, step: PEIGHTH, fn: Synth.pondSlot, gain: 0.7 }
   };
   var XFADE = 3;   // seconds, mood crossfade
 
@@ -407,8 +491,8 @@
   var muted = false, suspended = false, musicStarted = false, unlockedSpeech = false;
   var musicTimer = null, nextSlotTime = 0, slotCounter = 0;
   var mood = 'day', place = 'stars', curMood = 'day', pendingMood = null, songBus = {};
-  // curMood / pendingMood hold a SONG key: 'day', 'street', 'bakery' or 'night'.
-  function wantSong() { return mood === 'night' ? 'night' : (place === 'street' || place === 'bakery' ? place : 'day'); }
+  // curMood / pendingMood hold a SONG key: 'day', 'street', 'bakery', 'pond' or 'night'.
+  function wantSong() { return mood === 'night' ? 'night' : (place === 'street' || place === 'bakery' || place === 'pond' ? place : 'day'); }
   var lastBubble = 0, lastSquish = 0, stepFlip = false;
 
   try {
@@ -433,7 +517,7 @@
       sfxBus.connect(master); musicBus.connect(master);
       // one sub-bus per song, so moods can be crossfaded under the shared (ducked) musicBus
       curMood = wantSong(); pendingMood = null;
-      ['day', 'street', 'bakery', 'night'].forEach(function (k) {
+      ['day', 'street', 'bakery', 'pond', 'night'].forEach(function (k) {
         songBus[k] = ctx.createGain();
         songBus[k].gain.value = (k === curMood) ? SONGS[k].gain : 0;
         songBus[k].connect(musicBus);
@@ -492,7 +576,7 @@
 
   // ---- speech / recorded voice
   var VOICE_TEXT = { via: 'Si vola!', bravissima: 'Bravissima!', laviamo: 'Laviamoli!', puliti: 'Che puliti!', andiamo: 'Andiamo!',
-    chebuona: 'Che buona!', grazie: 'Grazie!' };
+    chebuona: 'Che buona!', grazie: 'Grazie!', preso: 'Preso!' };
   // Recorded voice files. Add a key here after dropping assets/sounds/<key>.mp3,
   // e.g. ['bravissima', 'via']. Keys not listed use the browser's Italian voice,
   // so nothing is requested for missing files.
@@ -600,10 +684,10 @@
       } catch (e) { /* ignore */ }
     },
     getMood: function () { return mood; },
-    /** 'street', 'bakery' or 'stars': which day song plays. Night stays the shared lullaby. */
+    /** 'street', 'bakery', 'pond' or 'stars': which day song plays. Night stays the shared lullaby. */
     setPlace: function (p) {
       try {
-        if (p !== 'street' && p !== 'bakery' && p !== 'stars') return;
+        if (p !== 'street' && p !== 'bakery' && p !== 'pond' && p !== 'stars') return;
         if (p === place) return;
         place = p;
         applySong();
@@ -633,6 +717,9 @@
     plop: function () { playSfx(Synth.plop); },
     bell: function () { playSfx(Synth.shopBell); },
     munch: function () { playSfx(Synth.munch); },
+    pop: function () { playSfx(Synth.pop, Math.random()); },
+    flip: function () { playSfx(Synth.flip); },
+    giggle: function () { playSfx(Synth.giggle); },
 
     say: function (key) {
       try {
