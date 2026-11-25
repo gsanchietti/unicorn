@@ -29,9 +29,11 @@
  *             an octopus or Bella.
  *   octopuses one swims in from the right edge about every 2.2 s while fewer than 6
  *             are in the pond (caught ones count until they reach the nursery), to
- *             a spot right of Bella, and stays there: it bobs, and every 2..4 s
- *             pops up in a gentle arc (1.2..1.6 s) up to 0.45 H above the water
- *             (never above the nursery's bottom). They never come near Bella.
+ *             a spot right of Bella that her bubbles reach, and stays there: it
+ *             bobs, and pops up in a gentle arc (1.2..1.6 s) up to 0.45 H above the
+ *             water (never above the nursery's bottom), the first time 1..2.5 s
+ *             after it comes in (even while still swimming in), then every 2..4 s.
+ *             They never come near Bella.
  *   catch     a bubble touching a swimming octopus (circle test): the bubble wraps
  *             it; flip 0 -> 1 in 0.5 s ('flip', a giggle, "Preso!"), a big red and
  *             pink sparkle burst; Core.addStars(1) and st.caught + 1 at once (once
@@ -58,7 +60,10 @@
  *             and L.bottom = waterY - 0.42 heroH (her hooves on the water), so her
  *             bubbles meet the octopuses' arcs, even when she is held at the top.
  *   octopus   0.14 u tall (Friends.buildOctopus), hit radius 0.45 of that; it rests
- *             0.2 r above the waterline, between Bella's front + r and W - 1.5 r
+ *             0.2 r above the waterline, between Bella's front + r and
+ *             min(W - 1.5 r, the bubbles' reach): 0.85 of how far a bubble drifts
+ *             in its 3.5 s (drag), from the horn. In landscape the right end of the
+ *             pond was out of reach, and an octopus there waited 20 s to flip.
  *   bubbles   radius 0.05 u; around a caught octopus 0.75 x its height
  *   lizard    Friends.draw('lizard', 'sit'), built 0.34 u tall (as the bakery does)
  *             and drawn at 0.55 of that on its rock
@@ -152,7 +157,9 @@
     L.bottom = L.waterY - 0.42 * L.heroH;      // her hooves just touch the water
     L.top = Math.min(L.bottom, Math.max(L.nBottom + 0.42 * L.heroH, L.restY - 0.75 * L.maxArc - HORN_DY * L.heroH));
     L.octoX0 = L.flyX + 0.6 * L.heroH + L.octoR;
-    L.octoX1 = Math.max(L.octoX0, W - 1.5 * L.octoR);
+    var drift = BUBBLE_V * W / BUBBLE_DRAG * (1 - Math.exp(-BUBBLE_DRAG * BUBBLE_LIFE));
+    L.reach = L.flyX + HORN_DX * L.heroH + 0.85 * drift;
+    L.octoX1 = Math.max(L.octoX0, Math.min(W - 1.5 * L.octoR, L.reach));
   }
 
   function heroTarget() { return { x: L.flyX, y: (L.top + L.bottom) / 2, h: L.heroH }; }
@@ -281,7 +288,7 @@
           var p = o.arc.t / o.arc.dur;
           if (p >= 1) { o.arc = null; o.popT = rnd(2, 4); }
           else lift = Math.sin(Math.PI * p) * o.arc.h;
-        } else if (Math.abs(dx) < L.octoR) {
+        } else {
           o.popT -= dt;
           if (o.popT <= 0) o.arc = { t: 0, dur: rnd(1.2, 1.6), h: rnd(0.6, 1) * L.maxArc };
         }
