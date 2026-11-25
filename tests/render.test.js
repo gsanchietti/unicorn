@@ -379,6 +379,78 @@ test('house, phone landscape', () => open(844, 390, async (page) => {
   await shot(page, 'house-landscape');
 }));
 
+// House sheet: every hiding place's back, front and both, then each of the five
+// friends behind it at hide and at peek (drawn as the scene draws them), on the
+// room's wall color. Also measures the cover: at hide a front shows (almost)
+// nothing of a friend, at peek a good part of it.
+test('house sheet, and every front hides and shows every friend', () => open(390, 844, async (page) => {
+  const res = await ev(page, () => {
+    const Hs = window.House, F = window.Friends, U = 260, dpr = 2, PEEK_UP = 0.6, OCTO_K = 0.85;
+    const KINDS = ['husky', 'pagi', 'mouse', 'lizard', 'octopus'];
+    Hs.build(U, dpr);
+    const fh = 0.22 * U;
+    F.build(fh, dpr); F.buildOctopus(fh, dpr);
+    const CW = 0.34 * U, PAD = 0.14 * U, cols = 3 + KINDS.length * 2;
+    const rowsH = Hs.SPOTS.map((k) => Hs.spot(k).front.h + PAD + 12);
+    const c = document.createElement('canvas');
+    c.width = cols * CW * dpr; c.height = (rowsH.reduce((a, b) => a + b, 0) + 10) * dpr;
+    const g = c.getContext('2d');
+    g.scale(dpr, dpr);
+    g.fillStyle = '#f8c896'; g.fillRect(0, 0, c.width, c.height);
+    const put = (gg, s, x, y) => gg.drawImage(s.c, x - s.w / 2, y - s.h, s.w, s.h);
+    const friend = (gg, kind, a, x, y, up) => {
+      gg.save();
+      gg.translate(x + a.hide.x, y + a.hide.y - up * PEEK_UP * a.hide.h);
+      const s = a.hide.h / fh;
+      gg.scale(s, s);
+      if (kind === 'octopus') { gg.scale(OCTO_K, OCTO_K); F.octopus(gg, 0, -fh / 2, { t: 1, side: 'red', flip: 0, giggle: 0 }); }
+      else F.draw(gg, kind, 0, 0, { t: 1, state: 'sit', p: 0 });
+      gg.restore();
+    };
+    // the part of a friend (0..1) a front leaves in sight
+    const mw = Math.ceil(CW), mh = Math.ceil(0.5 * U + PAD);
+    const mk = () => { const m = document.createElement('canvas'); m.width = mw; m.height = mh; return m.getContext('2d', { willReadFrequently: true }); };
+    const ga = mk(), gb = mk();
+    const seen = (kind, a, up) => {
+      ga.clearRect(0, 0, mw, mh); gb.clearRect(0, 0, mw, mh);
+      friend(ga, kind, a, mw / 2, mh - 2, up);
+      put(gb, a.front, mw / 2, mh - 2);
+      const A = ga.getImageData(0, 0, mw, mh).data, B = gb.getImageData(0, 0, mw, mh).data;
+      let all = 0, out = 0;
+      for (let i = 3; i < A.length; i += 4) if (A[i] > 128) { all++; if (B[i] < 128) out++; }
+      return out / all;
+    };
+    const table = {};
+    let y = 0;
+    Hs.SPOTS.forEach((k, r) => {
+      const a = Hs.spot(k);
+      y += rowsH[r];
+      put(g, a.back, CW * 0.5, y);
+      put(g, a.front, CW * 1.5, y);
+      put(g, a.back, CW * 2.5, y); put(g, a.front, CW * 2.5, y);
+      table[k] = {};
+      KINDS.forEach((kind, i) => {
+        [0, 1].forEach((up) => {
+          const x = CW * (3.5 + i * 2 + up);
+          put(g, a.back, x, y); friend(g, kind, a, x, y, up); put(g, a.front, x, y);
+        });
+        table[k][kind] = [seen(kind, a, 0), seen(kind, a, 1)];
+      });
+    });
+    return { url: c.toDataURL('image/png'), table };
+  });
+  fs.writeFileSync(path.join(OUT, 'house-sheet.png'), Buffer.from(res.url.split(',')[1], 'base64'));
+  const bad = [];
+  for (const [spot, row] of Object.entries(res.table)) {
+    console.log('house cover ' + spot.padEnd(9) + Object.entries(row).map(([k, v]) => k + ' ' + v.map((q) => q.toFixed(2)).join('/')).join('  '));
+    for (const [kind, v] of Object.entries(row)) {
+      if (v[0] > 0.01) bad.push(spot + ': ' + kind + ' shows at hide (' + v[0].toFixed(3) + ')');
+      if (v[1] < 0.25) bad.push(spot + ': ' + kind + ' hardly shows at peek (' + v[1].toFixed(3) + ')');
+    }
+  }
+  assert.deepStrictEqual(bad, []);
+}));
+
 // Pond sheet: every Pond sprite in day and night (twice its size, and as on a
 // phone), the water tile three times side by side (the joins), the nursery and
 // bubbles at 4 sizes, on the wall color and on the night color.
