@@ -80,6 +80,7 @@ The voice cues use the browser's Italian voice. To use your own recordings, put 
 | `andiamo.mp3` | "Andiamo!" | Bella goes through the sky gate to the star game |
 | `chebuona.mp3` | "Che buona!" | a friend in the bakery enjoys the cake |
 | `grazie.mp3` | "Grazie!" | the friend thanks Bella and Bongo for the cake |
+| `preso.mp3` | "Preso!" | a bubble catches an octopus in the pond |
 
 ## Update the offline copy
 
