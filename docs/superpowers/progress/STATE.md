@@ -1,46 +1,41 @@
 # Fairy town: where the work stands
 
-Saved 2026-11-24, when the owner asked to stop.
+Updated 2026-11-25.
 
 ## Done (branch `town`, preview at https://gsanchietti.github.io/unicorn/next/)
 
 | Step | Plan | Status |
 |---|---|---|
-| 1. Style switch and scenes | `plans/2026-11-22-fairy-town-step1-style-and-scenes.md` | Done, published. Owner approved the look. |
-| Star game adjustments: horse tail, avoidable mud, levels | `plans/2026-11-24-star-game-adjustments.md` | Done, published. |
-| 2. The street (sky gate, star jar) | `plans/2026-11-24-fairy-town-step2-street.md` | Done, published. |
-| 3. The bakery (husky, Pagi, mouse, lizard) | `plans/2026-11-24-fairy-town-step3-bakery.md` | Done and pushed. The owner said stop before the live check (see below). |
+| 1. Style switch and scenes | `plans/2026-11-22-fairy-town-step1-style-and-scenes.md` | Published; owner approved the look |
+| Star game adjustments | `plans/2026-11-24-star-game-adjustments.md` | Published |
+| 2. The street | `plans/2026-11-24-fairy-town-step2-street.md` | Published |
+| 3. The bakery | `plans/2026-11-24-fairy-town-step3-bakery.md` | Published |
+| Bakery: give the cake by tapping the friend / big give button | `plans/2026-11-25-bakery-serve.md` | Published |
+| 4. The bubble pond | `plans/2026-11-25-fairy-town-step4-pond.md` | Published |
+| 5. Physics extras (Matter.js jar, squishy clouds, bumping bubbles) | `plans/2026-11-25-fairy-town-step5-physics.md` | Published (`bella-next-7`, main `851655b`) |
 
-- **Last pushes:**
-  - `town` is at `50b0a0d`;
-  - `main` is at `33e5eac` (`next/` = step 3, preview cache `bella-next-4`).
-  - The live game (`/`, `bella-v4`) has not changed since the `next/` guard.
-- **Tests:** `cd tests && npm test` passes 88 of 88.
+`cd tests && npm test` passes 140 of 140. The full suite takes over 10 minutes. The live game (`/`, `bella-v4`) is unchanged.
 
-## Resume here
+## Next
 
-1. **Check the step 3 preview went live.**
-   - `gh api repos/gsanchietti/unicorn/pages/builds/latest` should report `built` for `33e5eac`.
-   - `/next/sw.js` should say `bella-next-4`.
-   - `/` should still load `js/game.js`.
-   - Play one cake on `/next/` with no console errors. A puppeteer play-through works: `__bella.street.enter('bakery')`, then the bakery hook `__bella.bakery`.
-2. **The owner tries the bakery.** Points to ask about:
-   - the lizard sits upright and looks a little frog-like;
-   - Bongo looks slightly soft in the bakery (drawn about 1.7x up from the flying-scale cache);
-   - the heart cake is seen from above, the other cakes from the front;
-   - none of the sounds has been heard by a person yet;
-   - the medal row on the start page sits over the ground on wide screens;
+1. **The owner tries steps 4 and 5 on `/next/`.** Open points:
+   - the octopus's grumpy face (too cross?);
+   - the empty sky above Bella in the portrait pond (about 110 px; it comes from the horn-meets-arcs rule);
+   - nothing has been heard by ear yet;
+   - the lizard looks frog-like, and Bongo is slightly soft in the bakery;
    - the stars have 5 points, but the mural's stars have 6.
-3. **Then step 4, the bubble pond.** Write its plan from the spec section "The bubble pond", in the same pattern:
+2. **Step 6, the house: hide and seek.** It is in the spec under "Delivery order" step 6, with the "be quick" rule: a peeking friend scurries to another spot after about 5 s, never less than 2.5 s, and nothing is lost. Write its plan:
    - the implementer builds the scene with placeholders,
-   - the Fable designer paints the octopus (red happy side and blue grumpy side) and the pond,
-   - the sound designer adds the pond song and sounds,
-   - the controller publishes `bella-next-5`.
-4. **Step 5, the physics extras.** After that, and when the owner says so, `town` replaces the live game. The step 1 final whole-branch review is due before that merge.
+   - the Fable designer paints the room and the hiding furniture,
+   - the sound designer adds the music and sounds,
+   - the controller publishes.
+3. **Then, when the owner says so, `town` replaces the live game.**
+   - First the final whole-branch review (deferred from step 1).
+   - The `sw.js` `VERSION` and cache prefix go back to the `bella-v` series.
+   - `next/` is removed.
 
 ## Execution notes
 
-- Ledgers with every ruling are copied in this folder. The live ones are in `.superpowers/sdd/<plan>/progress.md`, which is git-ignored.
-- The `main` worktree lives at `.worktrees/main`, which is git-ignored. Publish with `sh tools/publish-preview.sh . .worktrees/main`.
-- Agent roles are capped at 3: the implementer (opus or sonnet), the Fable designer (art), and the sound designer (sonnet). The controller does the reviews.
-- Parallel work is fine only on different files. The sound designer can run in an isolated worktree, and the controller cherry-picks its commit.
+- Ledgers with every ruling are in this folder. The live ones are in `.superpowers/sdd/<plan>/progress.md`, which is git-ignored.
+- The `main` worktree is at `.worktrees/main`. Publish with `sh tools/publish-preview.sh . .worktrees/main`.
+- Roles are capped at 3: the implementer (opus or sonnet), the Fable designer, and the sound designer (sonnet, in an isolated worktree, cherry-picked). The controller reviews.
