@@ -11,11 +11,17 @@
  *   Backdrop.setTime(phase)      'day' | 'sunset' | 'night' | 'sunrise'
  *   Backdrop.mood() -> 'day'|'night'   also sent to Sound.setMood when it changes
  *   Backdrop.hillH()             height of the hills band in CSS px
+ *   Backdrop.cloudsOnScreen(scrollX) -> [{i, x, y, r, s}]
+ *                                the far clouds now visible for this scrollX (the
+ *                                one passed to draw()): index, center, tap radius
+ *                                and squish (-0.25..0.25)
+ *   Backdrop.squish(i)           kicks far cloud i's jelly spring (Phys.spring): it
+ *                                squashes, scale(1 + s, 1 - s), and wobbles back
  */
 (function () {
   'use strict';
 
-  var Art = window.Art, Core = window.Core;
+  var Art = window.Art, Core = window.Core, Phys = window.Phys;
   var TAU = Math.PI * 2;
   var W = 0, H = 0, M = 0, DPR = 1, reduced = false;
   function sync() { W = Core.W; H = Core.H; M = Core.M; DPR = Core.DPR; reduced = Core.reduced; }
@@ -48,7 +54,7 @@
     if (!deco.length) {
       for (var i = 0; i < 40; i++) twinkles.push({ x: Math.random(), y: 0.02 + Math.random() * 0.5, r: 0.008 + Math.random() * 0.012, sp: rnd(0.4, 1.4), ph: rnd(0, TAU) });
       for (i = 0; i < 6; i++) flies.push({ x: Math.random(), y: 0.6 + Math.random() * 0.2, sp: rnd(0.2, 0.4), ph: rnd(0, TAU), ph2: rnd(0, TAU) });
-      for (i = 0; i < 5; i++) deco.push({ x: Math.random(), y: 0.08 + Math.random() * 0.45, k: i % 4, sp: 0.01 + Math.random() * 0.02, a: 0.8 + Math.random() * 0.15 });
+      for (i = 0; i < 5; i++) deco.push({ x: Math.random(), y: 0.08 + Math.random() * 0.45, k: i % 4, sp: 0.01 + Math.random() * 0.02, a: 0.8 + Math.random() * 0.15, jelly: Phys.spring() });
     }
   }
 
@@ -92,6 +98,11 @@
 
   function update(dt, clock) {
     t += dt;
+    for (var i = 0; i < deco.length; i++) if (deco[i].jelly.x || deco[i].jelly.v) {
+      var j = deco[i].jelly;
+      j.step(dt);
+      if (Math.abs(j.x) < 1e-4 && Math.abs(j.v) < 1e-3) { j.x = 0; j.v = 0; }
+    }
     if (clock) cyc += dt;
     updateMood();
   }
@@ -144,9 +155,12 @@
     var dim = 1 - 0.6 * nn - 0.2 * sky.s;
     for (i = 0; i < deco.length; i++) {
       d = deco[i];
-      var spr = S.deco[d.k], span = W + spr.lw;
-      var x = ((d.x * span - t * d.sp * W - scrollX * 0.06) % span + span) % span - spr.lw / 2;
-      Art.drawSprite(g, spr, x, d.y * H, 1, d.a * dim, 0);
+      var spr = S.deco[d.k], x = decoX(d, scrollX), q = squishOf(d);
+      if (!q) { Art.drawSprite(g, spr, x, d.y * H, 1, d.a * dim, 0); continue; }
+      var w = spr.lw * (1 + q), h = spr.lh * (1 - q);
+      g.globalAlpha = d.a * dim;
+      g.drawImage(spr, x - w / 2, d.y * H - h / 2, w, h);
+      g.globalAlpha = 1;
     }
     if (opts && opts.behind) opts.behind(g);
     var hh = hillH(), y = H - hh;
@@ -163,7 +177,29 @@
     }
   }
 
+  // a far cloud's center x on screen
+  function decoX(d, scrollX) {
+    var spr = S.deco[d.k], span = W + spr.lw;
+    return ((d.x * span - t * d.sp * W - scrollX * 0.06) % span + span) % span - spr.lw / 2;
+  }
+  function squishOf(d) { var v = d.jelly.x; return v > 0.25 ? 0.25 : v < -0.25 ? -0.25 : v; }
+  function cloudsOnScreen(scrollX) {
+    sync();
+    var out = [];
+    for (var i = 0; i < deco.length; i++) {
+      var d = deco[i], spr = S.deco[d.k], x = decoX(d, scrollX || 0), r = spr.lw * 0.36;
+      if (x + r < 0 || x - r > W) continue;
+      out.push({ i: i, x: x, y: d.y * H, r: r, s: squishOf(d) });
+    }
+    return out;
+  }
+  function squish(i) {
+    var d = deco[i];
+    if (d) d.jelly.kick(reduced ? 2.5 : 4.5);
+  }
+
   window.Backdrop = {
+    cloudsOnScreen: cloudsOnScreen, squish: squish,
     build: build, update: update, draw: draw, setTime: setTime,
     mood: function () { return mood; },
     hillH: function () { sync(); return hillH(); }

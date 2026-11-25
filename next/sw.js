@@ -3,13 +3,15 @@
  * pick up the new version (it applies on the next launch). */
 'use strict';
 
-var VERSION = 'bella-next-6';
+var VERSION = 'bella-next-7';
 var FILES = [
   './',
   'index.html',
   'style.css',
   'manifest.webmanifest',
   'js/art.js',
+  'js/vendor/matter.min.js',
+  'js/physics.js',
   'js/art-town.js',
   'js/art-bakery.js',
   'js/art-pond.js',

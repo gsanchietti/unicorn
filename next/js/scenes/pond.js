@@ -25,7 +25,8 @@
  *             0.45 W px/s to the right and slow down (drag 0.7 /s), rise 0.02..0.04
  *             H px/s and wobble. Each pops (a sparkle, 'pop') after 3.5 s, at the
  *             nursery's bottom or at the right edge. At most 24: a new one pops
- *             the oldest.
+ *             the oldest. They push each other apart softly (Phys.separate), never
+ *             an octopus or Bella.
  *   octopuses one swims in from the right edge about every 2.2 s while fewer than 6
  *             are in the pond (caught ones count until they reach the nursery), to
  *             a spot right of Bella, and stays there: it bobs, and every 2..4 s
@@ -72,12 +73,14 @@
  *   shoot()     one bubble from the horn now (no 0.25 s wait)
  *   horn()      {x, y}: the horn tip on screen
  *   nursery()   {x, y, w, h}: the nursery's box on screen (top left, size)
+ *   overlap()   the bubbles' summed overlap in px (they push apart with
+ *               Phys.separate(bubbles, 2) every frame after moving)
  */
 (function () {
   'use strict';
 
   var Art = window.Art, Core = window.Core, CHR = window.Characters, Pond = window.Pond;
-  var Friends = window.Friends, Backdrop = window.Backdrop;
+  var Friends = window.Friends, Backdrop = window.Backdrop, Phys = window.Phys;
   var TAU = Math.PI * 2;
   var snd = Core.snd;
 
@@ -185,6 +188,23 @@
       b[n++] = q;
     }
     b.length = n;
+    // bubbles bump each other softly (never an octopus or Bella): the push moves
+    // the wobble's base line too, so the bubble keeps the new spot
+    if (n > 1) {
+      for (i = 0; i < n; i++) b[i].wy = b[i].y - b[i].by;
+      Phys.separate(b, 2);
+      for (i = 0; i < n; i++) b[i].by = b[i].y - b[i].wy;
+    }
+  }
+  function overlap() {
+    var b = st.bubbles, sum = 0;
+    for (var i = 0; i < b.length; i++) {
+      for (var j = i + 1; j < b.length; j++) {
+        var o = b[i].r + b[j].r - Math.hypot(b[i].x - b[j].x, b[i].y - b[j].y);
+        if (o > 0) sum += o;
+      }
+    }
+    return sum;
   }
 
   // -------------------------------------------------------------- octopuses
@@ -725,6 +745,7 @@
     spawnOcto: function (x, y) { return spawnOcto(x, y); },
     shoot: function () { if (st.mode === 'fly') addBubble(); },
     horn: function () { return horn(); },
-    nursery: function () { return { x: L.nx - L.nw / 2, y: L.ny - L.nh / 2, w: L.nw, h: L.nh }; }
+    nursery: function () { return { x: L.nx - L.nw / 2, y: L.ny - L.nh / 2, w: L.nw, h: L.nh }; },
+    overlap: overlap
   };
 })();

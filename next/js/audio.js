@@ -4,7 +4,7 @@
  * except the optional recorded voice cues assets/sounds/<key>.mp3.
  *
  * Public API: window.Sound = { init, isMuted, setMuted, toggleMute, star,
- *   bubble, boing, splat, fanfare, sparkle, clipClop, door, ding, squish, plop,
+ *   bubble, boing, splat, fanfare, sparkle, clipClop, door, ding, squish, clink, jarPop, plop,
  *   bell, munch, pop, flip, giggle, say, setMood, getMood, setPlace, suspend, resume }
  *   setPlace('street'|'bakery'|'pond'|'stars') picks the DAY song of a place; setMood('day'|
  *   'night') still switches to the shared lullaby. Both crossfade at a bar line.
@@ -103,13 +103,27 @@
     var lfo = ctx.createOscillator(), lg = ctx.createGain();
     lfo.frequency.value = 22; lg.gain.value = 14;
     lfo.connect(lg); lg.connect(osc.frequency);
-    lp.type = 'lowpass'; lp.frequency.value = 1400;
+    lp.type = 'lowpass'; lp.frequency.value = 1100;
     g.gain.setValueAtTime(0.0001, t);
-    g.gain.linearRampToValueAtTime(0.30, t + 0.015);
+    g.gain.linearRampToValueAtTime(0.22, t + 0.02);
     g.gain.exponentialRampToValueAtTime(0.0001, t + 0.38);
     osc.connect(lp); lp.connect(g); g.connect(dest);
     osc.start(t); lfo.start(t);
     osc.stop(t + 0.40); lfo.stop(t + 0.40);
+  };
+
+  /** Tiny soft glass "tink" for a star landing in the jar (~0.25 s). rnd in [0,1) nudges the pitch. */
+  Synth.clink = function (ctx, dest, t, rnd) {
+    var f = 1900 * Math.pow(2, ((rnd === undefined ? 0.5 : rnd) - 0.5) * 0.4);   // about a minor third of spread
+    tone(ctx, dest, t, { f: f, peak: 0.08, attack: 0.003, dur: 0.22 });
+    tone(ctx, dest, t, { f: f * 2.76, peak: 0.025, attack: 0.002, dur: 0.1 });    // glassy inharmonic partial
+  };
+
+  /** Soft "whoop" when the after-game jar appears: round sine gliding up (~0.35 s). */
+  Synth.jarPop = function (ctx, dest, t) {
+    tone(ctx, dest, t, { f: 260, f2: 620, glide: 0.18, peak: 0.2, attack: 0.012, dur: 0.34 });
+    tone(ctx, dest, t, { f: 520, f2: 1240, glide: 0.18, peak: 0.04, attack: 0.012, dur: 0.22 });
+    bell(ctx, dest, t + 0.16, pent(10) * 2, 0.07, 0.4);
   };
 
   /** Funny soft mud splosh: swept low-passed noise + two low bloops. */
@@ -493,7 +507,7 @@
   var mood = 'day', place = 'stars', curMood = 'day', pendingMood = null, songBus = {};
   // curMood / pendingMood hold a SONG key: 'day', 'street', 'bakery', 'pond' or 'night'.
   function wantSong() { return mood === 'night' ? 'night' : (place === 'street' || place === 'bakery' || place === 'pond' ? place : 'day'); }
-  var lastBubble = 0, lastSquish = 0, stepFlip = false;
+  var lastBubble = 0, lastSquish = 0, lastClink = -1e9, stepFlip = false;
 
   try {
     var saved = window.localStorage.getItem(MUTE_KEY);
@@ -714,6 +728,15 @@
       lastSquish = now;
       playSfx(Synth.squish);
     },
+    clink: function () {
+      try {
+        var now = (window.performance && performance.now) ? performance.now() : Date.now();
+        if (now - lastClink < 125) return;   // at most 8 per second
+        lastClink = now;
+        playSfx(Synth.clink, Math.random());
+      } catch (e) { /* never throw into the game */ }
+    },
+    jarPop: function () { playSfx(Synth.jarPop); },
     plop: function () { playSfx(Synth.plop); },
     bell: function () { playSfx(Synth.shopBell); },
     munch: function () { playSfx(Synth.munch); },
