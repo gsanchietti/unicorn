@@ -92,6 +92,8 @@ The voice cues use the browser's Italian voice. To use your own recordings, put 
 | `chebuona.mp3` | "Che buona!" | a friend in the bakery enjoys the cake |
 | `grazie.mp3` | "Grazie!" | the friend thanks Bella and Bongo for the cake |
 | `preso.mp3` | "Preso!" | a bubble catches an octopus in the pond |
+| `trovato.mp3` | "Trovato!" | a friend is found in the house |
+| `cucu.mp3` | "Cucù!" | a friend starts peeking out in the house |
 
 ## Update the offline copy
 
