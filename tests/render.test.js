@@ -136,6 +136,32 @@ test('street, the jar shows the total', () => open(390, 844, async (page) => {
   await shot(page, 'street-jar');
 }));
 
+// The Matter.js jar: the pile on the square, then the pop-up while new stars drop in.
+test('street, the physics jar, within the render budget', () => open(390, 844, async (page) => {
+  await ev(page, () => { try { localStorage.setItem('bella.stars', '37'); } catch (e) { /* ignore */ } });
+  await page.reload({ waitUntil: 'load' });
+  await page.waitForFunction(() => window.__bella && window.__bella.scene);
+  await toStreet(page);
+  await ev(page, () => { window.__bella.setTime('day'); window.__bella.street.enter('square'); });
+  await page.waitForFunction(() => window.__bella.street.st.jarShow > 0, { timeout: 10000, polling: 30 });
+  await page.waitForFunction(() => window.__bella.street.st.jarShow <= 0, { timeout: 10000, polling: 30 });
+  await shot(page, 'street-jar-physics');
+  // into the star game and back with 26 new stars: they drop in while the jar pops up
+  await ev(page, () => window.__bella.street.enter('gate'));
+  await page.waitForFunction(() => window.__bella.scene() === 'stars' && window.__bella.stars.st.mode === 'fly', { timeout: 15000, polling: 50 });
+  await ev(page, () => { window.__bella.stars.addPoints(26); window.__bella.goHome(); });
+  await page.waitForFunction(() => window.__bella.scene() === 'street', { timeout: 8000, polling: 50 });
+  await ev(page, () => window.__bella.setTime('day'));
+  await hold(page, 900);
+  await shot(page, 'street-jar-pop');
+  await frames(page, 125);
+  const cost = await ev(page, () => window.__bella.frameMs());
+  const phys = await ev(page, () => window.__bella.street.jar().ms);
+  console.log('street render ms/frame with the jar settling:', cost.toFixed(3), '; physics ms/step:', phys.toFixed(3));
+  assert.ok(cost > 0 && cost < BUDGET_MS, 'street + jar render ' + cost.toFixed(2) + ' ms');
+  assert.ok(phys > 0 && phys < 1, 'physics step ' + phys.toFixed(3) + ' ms');
+}));
+
 // ---------------------------------------------------------------- the bakery
 async function tapButton(page, id) {
   const b = await ev(page, (id) => window.__bella.bakery.buttons().find((q) => q.id === id), id);

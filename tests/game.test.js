@@ -469,6 +469,117 @@ for (const s of SIZES) {
   });
 }
 
+// ---------------------------------------------------------------- the star jar
+// Step 5 of the fairy town plan: a Matter.js jar where every earned star drops in.
+const jarOf = (page) => ev(page, () => window.__bella.street.jar());
+const bigOf = (j) => j.bodies.filter((b) => b.big).length;
+const insideJar = (j) => j.bodies.every((b) => b.x >= 0 && b.x <= 1 && b.y >= 0 && b.y <= 1);
+async function streetWithTotal(page, n) {
+  await ev(page, (n) => localStorage.setItem('bella.stars', String(n)), n);
+  await page.reload({ waitUntil: 'load' });
+  await page.waitForFunction(() => window.__bella && window.__bella.scene, { timeout: 3000 });
+  await toStreet(page);
+}
+// Back from the star game with n new stars.
+async function homeWithStars(page, n) {
+  await ev(page, (n) => window.__bella.stars.addPoints(n), n);
+  await ev(page, () => window.__bella.goHome());
+  await waitFor(page, () => window.__bella.scene() === 'street');
+}
+
+test('the jar fills from the total', () => single(async ({ page }) => {
+  await streetWithTotal(page, 37);
+  const j = await jarOf(page);
+  assert.ok(j.count >= 4 && j.count <= 60, 'count ' + j.count);
+  assert.strictEqual(bigOf(j), 3);
+  assert.ok(insideJar(j), 'inside: ' + JSON.stringify(j.bodies));
+}));
+
+test('stars from a game drop into the jar', () => single(async ({ page }) => {
+  await playStars(page);                    // the street was shown on the way
+  const n0 = (await jarOf(page)).count;
+  await homeWithStars(page, 4);
+  assert.ok(await ev(page, () => window.__bella.street.st.jarPop > 0), 'the jar pops up');
+  await waitFor(page, (n) => window.__bella.street.jar().count === n + 4, 3000, n0);
+}));
+
+test('many new stars drop in without overflowing', () => single(async ({ page }) => {
+  await playStars(page);
+  const b0 = bigOf(await jarOf(page));
+  await homeWithStars(page, 75);
+  let most = 0;
+  for (let i = 0; i < 40; i++) {
+    await hold(page, 200);
+    most = Math.max(most, (await jarOf(page)).count);
+  }
+  const j = await jarOf(page);
+  assert.ok(most <= 60, 'at most 60 bodies, saw ' + most);
+  assert.ok(bigOf(j) > b0, 'big stars ' + b0 + ' -> ' + bigOf(j));
+  assert.ok(insideJar(j), 'inside the jar');
+}));
+
+test('a huge total keeps the jar small', () => single(async ({ page }) => {
+  for (const v of ['5000', '9'.repeat(400), 'abc']) {
+    await streetWithTotal(page, v);
+    const j = await jarOf(page);
+    assert.ok(j.count <= 60, v.slice(0, 8) + ': count ' + j.count);
+    assert.ok(insideJar(j), v.slice(0, 8) + ': inside the jar');
+  }
+  await streetWithTotal(page, 5000);
+  assert.ok(bigOf(await jarOf(page)) === 50, 'past 500 the jar is full of big stars');
+  await ev(page, () => window.__bella.street.enter('square'));
+  await waitFor(page, () => window.__bella.street.st.jarShow > 0, 10000);
+  await hold(page, 2500);
+  const ms = await ev(page, () => window.__bella.frameMs());
+  assert.ok(ms > 0 && ms < 8, 'render ' + ms.toFixed(2) + ' ms');
+}));
+
+test('jar physics sleeps off screen', () => single(async ({ page }) => {
+  await streetWithTotal(page, 37);
+  await ev(page, () => { const b = window.__bella.street; b.st.x = b.places().find((p) => p.kind === 'square').x; });
+  await camSettled(page);
+  const a0 = (await jarOf(page)).steps;
+  await hold(page, 500);
+  assert.ok((await jarOf(page)).steps > a0, 'steps while the jar is on screen');
+  await ev(page, () => { const b = window.__bella.street; b.st.x = b.places().find((p) => p.kind === 'pond').x; });
+  await camSettled(page);
+  const s0 = (await jarOf(page)).steps;
+  await hold(page, 1000);
+  assert.strictEqual((await jarOf(page)).steps, s0, 'no steps far from the jar');
+}));
+
+test('resize keeps the stars inside the jar', () => single(async ({ page }) => {
+  await playStars(page);
+  await homeWithStars(page, 40);
+  for (const vp of [LANDSCAPE, PORTRAIT, LANDSCAPE]) {
+    await page.setViewport(vp);
+    for (let i = 0; i < 4; i++) {
+      await hold(page, 150);
+      const j = await jarOf(page);
+      assert.ok(insideJar(j), 'inside: ' + JSON.stringify(j.bodies.filter((b) => !(b.x >= 0 && b.x <= 1 && b.y >= 0 && b.y <= 1))));
+    }
+  }
+  await waitFor(page, () => window.__bella.street.jar().count >= 4, 5000);
+}));
+
+test('Matter is loaded from file://', async () => {
+  const url = 'file://' + path.resolve(__dirname, '..', 'index.html');
+  const g = await openGame(browser, { w: 390, h: 844, url });
+  try {
+    const { page } = g;
+    assert.strictEqual(await ev(page, () => typeof Matter), 'object');
+    assert.strictEqual(await ev(page, () => typeof window.Phys), 'object');
+    await toStreet(page);
+    await ev(page, () => window.__bella.street.enter('square'));
+    await waitFor(page, () => window.__bella.street.st.jarShow > 0, 10000);
+    assert.ok((await jarOf(page)).steps > 0, 'the jar steps');
+    // Chrome blocks the font preload and the manifest under file:// (CORS, origin
+    // 'null'): those were there before Matter and don't affect play.
+    const known = /title\.woff2|manifest\.webmanifest|^console\.error: Failed to load resource: net::ERR_FAILED$/;
+    assert.deepStrictEqual(g.errors.filter((e) => !known.test(e)), []);
+  } finally { await g.ctx.close(); }
+});
+
 each('world ends stop Bella and the camera', async ({ page }, s) => {
   await toStreet(page);
   for (const [frac, fx] of [[0.93, 0.85], [0.07, 0.15]]) {

@@ -31,7 +31,7 @@ A gentle browser game for small children. Bella the unicorn and Bongo the teddy 
 - At 10, 25, 50 stars, and every 50 after that: confetti, a rainbow and "Bravissima!".
 - After a while (on the street, at the pond and in the star game) the sky turns to sunset and a cozy night with a smiling moon, then back to day. The music changes from a happy tune to a lullaby.
 - The round button at the top right turns the sound on and off. Sound starts after the first tap.
-- Every star also goes into the jar on the street, which keeps the total from all the games.
+- Every star also goes into the jar on the street, which keeps the total from all the games. Back on the street after a game, a small jar pops up at the top and the new stars drop in one by one and pile up. Every 10 small stars melt into one big star at the bottom, so the jar never overflows.
 - The house button next to it goes back one step: from the star game, the bakery or the pond to the street, from the street to the start page. Leaving full screen goes back to the start page.
 
 ## Put it on a phone or tablet
@@ -106,6 +106,8 @@ The new look is developed on branch `town`. `tools/publish-preview.sh <town-work
 ## Files
 
 - `index.html`, `style.css`: the page, painted-wall texture and the home and mute buttons
+- `js/vendor/matter.min.js`: Matter.js 0.19.0, the physics engine of the star jar (see Third-party)
+- `js/physics.js`: the star jar's world, a springy wobble and a bubble bump
 - `js/art.js`: ink-and-pencil drawings in the style of the bedroom-wall mural (wall, grass and river, stars, clouds, moon, mud, rainbow, bubbles)
 - `js/art-town.js`: the street's drawings (houses, the sky gate, the bakery, the pond, trees, the star jar, the signs)
 - `js/art-bakery.js`: the bakery's drawings (the room, counter, oven, cakes, creams, toppings, buttons)
@@ -131,3 +133,8 @@ The new look is developed on branch `town`. `tools/publish-preview.sh <town-work
 ## License
 
 GPL-3.0. See `LICENSE`.
+
+## Third-party
+
+- [Matter.js](https://brm.io/matter-js/) 0.19.0 by Liam Brummitt and contributors, MIT License: `js/vendor/matter.min.js`, license in `js/vendor/LICENSE-matter.txt`.
+- Comfortaa Bold (subset, renamed), SIL Open Font License: `assets/fonts/title.woff2`, license in `assets/fonts/OFL.txt`.

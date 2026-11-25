@@ -10,6 +10,8 @@ var FILES = [
   'style.css',
   'manifest.webmanifest',
   'js/art.js',
+  'js/vendor/matter.min.js',
+  'js/physics.js',
   'js/art-town.js',
   'js/art-bakery.js',
   'js/art-pond.js',

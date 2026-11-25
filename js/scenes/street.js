@@ -17,21 +17,36 @@
  * Draws Bella at the star game's flying scale (Characters keeps 2 cached scales).
  * Pose: run 0, walk 0..1 (eased with movement), stride (walk phase in cycles,
  * grows with distance walked so the hooves don't slide).
- * Uses window.Art, window.Town (js/art-town.js), window.Characters, window.Backdrop;
- * audio only through Core.snd ('clipClop', 'say' 'andiamo', 'star', 'door', 'bubble').
+ * The star jar is a Phys.jar world (js/physics.js, Matter.js): built on the first
+ * enter from Core.stars(), then kept. On every enter the total is compared with
+ * the last one shown here (in memory only): new stars drop() in. Coming from a
+ * game ('stars', 'bakery', 'pond') with new stars, a small copy of the jar pops
+ * up at the top center (0.22 u tall) for 3 s, longer while stars still drop (at
+ * most POP_MAX s), then slides away; it shares the square's world. More than
+ * DROP_MAX new stars at once: the jar is rebuilt settled from the total minus
+ * DROP_MAX and only those drop. The world steps only while the square's jar is
+ * within the screen +-L.u or the pop-up shows, and the page is visible.
+ * Uses window.Art, window.Town (js/art-town.js), window.Phys, window.Characters,
+ * window.Backdrop; audio only through Core.snd ('clipClop', 'say' 'andiamo',
+ * 'star', 'door', 'bubble', 'clink' when a dropped star first lands, 'jarPop').
  *
  * Debug hook window.__bella.street:
- *   st          {x, camX, target, walking, dir, jarShow, jiggle} (world x of Bella,
- *               camera left edge, target place kind or null, ...)
+ *   st          {x, camX, target, walking, dir, jarShow, jiggle, jarPop} (world x of
+ *               Bella, camera left edge, target place kind or null, ..., seconds left
+ *               of the after-game jar pop-up)
  *   places()    [{kind, x, sx, sy, r}]: world x, screen center and radius of each
  *               place's tap target
  *   worldW()    the street's width in CSS px
  *   enter(kind) same as a tap on that place
+ *   jar()       {count, steps, bodies, ms}: the jar world's bodies now, its substeps
+ *               so far, its bodies ([{x, y, a, big}] in jar space) and the average
+ *               cost of a step() call in ms
  */
 (function () {
   'use strict';
 
   var Art = window.Art, Core = window.Core, CHR = window.Characters, Town = window.Town, Backdrop = window.Backdrop;
+  var Phys = window.Phys;
   var TAU = Math.PI * 2;
   var snd = Core.snd;
 
@@ -65,6 +80,8 @@
   var BUTTERFLIES = [{ f: 0.045, ph: 0 }, { f: 0.39, ph: 2.1 }, { f: 0.8, ph: 4.2 }];
   var START_F = 0.22, END_F = [0.04, 0.96];
   var JAR_H = 0.35, SIGN_R = 0.09, SIGN_H = 0.42;   // in U
+  var POP_H = 0.22, POP_T = 3, POP_MAX = 9, DROP_MAX = 120;   // the after-game jar: height in U, seconds; stars
+  var GAMES = { stars: 1, bakery: 1, pond: 1 };
   var FOOT = 1050;          // rig y of Bella's hooves at rest (Characters.H = 1100)
 
   // L: size-dependent layout, set by resize()
@@ -73,13 +90,14 @@
   function groundY() { return H - Math.max(H * 0.14, M * 0.16); }
 
   // ------------------------------------------------------------------- state
-  var st = { x: 0, camX: 0, target: null, walking: false, dir: 1, jarShow: 0, jiggle: 0 };
+  var st = { x: 0, camX: 0, target: null, walking: false, dir: 1, jarShow: 0, jiggle: 0, jarPop: 0 };
   var pose = { t: 0, run: 0, walk: 0, stride: 0, wave: 0, happy: 0, look: 0, glow: 0.5, face: undefined };
   var t = 0, nightK = 0, total = 0, entering = false, lastHalf = 0;
   var holds = new Map();    // pointer id -> {x, cancelled}
   var sparks = [];          // {x, y, vy, life, max} in world coords
   var placeFx = PLACES.map(function () { return { near: 0, wig: 0 }; });
   var S = {};
+  var jar = null, shown = null, popAge = 0, clinkT = 0, popOn = false;
 
   function place(kind) {
     for (var i = 0; i < PLACES.length; i++) if (PLACES[i].kind === kind) return i;
@@ -190,6 +208,71 @@
     if (sparks.length > 60) sparks.splice(0, sparks.length - 60);
   }
 
+  // --------------------------------------------------------------- the jar
+  function makeJar(n) {
+    return Phys.jar.create(n, {
+      land: function () {
+        if (t - clinkT < 0.05) return;
+        clinkT = t;
+        snd('clink');
+      },
+      merge: function (jx, jy) {
+        snd('star', 9);
+        if (squareOnScreen()) {
+          var p = jarPoint(placeX(place('square')), L.gy, L.u * JAR_H, jx, jy);
+          sparkle(p.x, p.y, 6);
+        }
+        if (popOn) {
+          var b = popBox(), q = jarPoint(b.x, b.y, b.h, jx, jy);
+          sparkle(q.x + st.camX, q.y, 5);
+        }
+      }
+    });
+  }
+  // a jar-space point on a jar drawn h tall with its bottom center at (x, y)
+  // (the mapping of Town.drawJar: a 58-unit square at (4, 16) of 66 x 100)
+  function jarPoint(x, y, h, jx, jy) {
+    var k = h / 100;
+    return { x: x + (4 + jx * 58 - 33) * k, y: y - h + (16 + jy * 58) * k };
+  }
+  function squareOnScreen() {
+    var x = placeX(place('square')) - st.camX;
+    return x > -L.u && x < W + L.u;
+  }
+  // The pop-up's jar: bottom center and height, with its scale in (pop) and slide out.
+  function popBox() {
+    var h = L.u * POP_H, y = Math.max(H * 0.05, 12) + h;
+    var inK = reduced ? smooth(popAge / 0.3) : popIn(popAge / 0.45);
+    var out = smooth(1 - st.jarPop / 0.5);
+    return { x: W / 2, y: y - out * (y + h * 0.2), h: h, s: Math.max(0.01, inK) };
+  }
+  function popIn(p) {        // ease out with a little overshoot
+    p = clamp(p, 0, 1);
+    var c = 1.7;
+    return 1 + (c + 1) * Math.pow(p - 1, 3) + c * Math.pow(p - 1, 2);
+  }
+  // On enter: the total since last shown here drops into the jar.
+  function jarEnter(from) {
+    total = Core.stars();
+    var n = shown === null ? 0 : total - shown;
+    if (!jar || shown === null || n < 0 || n !== n) jar = makeJar(total);
+    else if (n > 0) {
+      if (n > DROP_MAX) { jar = makeJar(total - DROP_MAX); n = DROP_MAX; }
+      jar.drop(n);
+      if (GAMES[from]) { st.jarPop = POP_T; popAge = 0; snd('jarPop'); }
+    }
+    shown = total;
+  }
+  function jarUpdate(dt) {
+    if (st.jarPop > 0) {
+      popAge += dt;
+      st.jarPop = Math.max(0, st.jarPop - dt);
+      if (jar.pending() > 0 && popAge < POP_MAX - 0.5) st.jarPop = Math.max(st.jarPop, 0.6);
+    }
+    popOn = st.jarPop > 0;
+    if (!document.hidden && (popOn || squareOnScreen())) jar.step(dt);
+  }
+
   // ------------------------------------------------------------------ update
   function update(dt) {
     t += dt;
@@ -217,6 +300,7 @@
     st.camX = clamp(ease(st.camX, camGoal(), dt * 4), 0, L.ww - W);
     st.jiggle = Math.max(0, st.jiggle - dt / 0.8);
     st.jarShow = Math.max(0, st.jarShow - dt);
+    jarUpdate(dt);
     for (var j = 0; j < PLACES.length; j++) {
       var fx = placeFx[j];
       fx.near = ease(fx.near, Math.abs(st.x - placeX(j)) < 0.6 * M ? 1 : 0, dt * 3);
@@ -291,7 +375,7 @@
         g.beginPath(); g.moveTo(sp.x, sp.y); g.lineTo(sp.x, L.gy); g.stroke();
         Town.drawSign(g, sp.x, sp.y, sp.r, p.sign, t);
       }
-      if (p.kind === 'square' && x > -L.u && x < W + L.u) Town.drawJar(g, x, L.gy, L.u * JAR_H, total, st.jiggle);
+      if (p.kind === 'square' && x > -L.u && x < W + L.u) Town.drawJar(g, x, L.gy, L.u * JAR_H, total, st.jiggle, jar.bodies());
     }
   }
   function drawHero(g) {
@@ -359,6 +443,16 @@
     g.globalAlpha = 1;
   }
 
+  function drawPop(g) {
+    if (!popOn) return;
+    var b = popBox();
+    g.save();
+    g.translate(b.x, b.y);
+    g.scale(b.s, b.s);
+    Town.drawJar(g, 0, 0, b.h, total, 0, jar.bodies());
+    g.restore();
+  }
+
   function render(g) {
     Backdrop.draw(g, st.camX * 0.25);
     drawLife(g);
@@ -369,6 +463,7 @@
     drawHero(g);
     drawButterflies(g);
     drawFront(g);
+    drawPop(g);
     drawSparks(g);
     drawJarRow(g);
   }
@@ -408,7 +503,7 @@
       var from = args && args.from;
       st.x = from === 'stars' ? placeX(place('gate')) : from === 'bakery' ? standX(place('bakery'))
         : from === 'pond' ? standX(place('pond')) : START_F * L.ww;
-      st.dir = 1; st.target = null; st.walking = false; st.jarShow = 0; st.jiggle = 0;
+      st.dir = 1; st.target = null; st.walking = false; st.jarShow = 0; st.jiggle = 0; st.jarPop = 0; popOn = false;
       st.camX = camGoal();
       pose.walk = 0;
       entering = false;
@@ -416,7 +511,7 @@
       sparks.length = 0;
       placeFx.forEach(function (f) { f.near = 0; f.wig = 0; });
       nightK = Backdrop.mood() === 'night' ? 1 : 0;
-      total = Core.stars();
+      jarEnter(from);
     },
     exit: function () {
       holds.clear();
@@ -439,6 +534,10 @@
       });
     },
     worldW: function () { return L.ww; },
-    enter: function (kind) { walkTo(place(kind)); }
+    enter: function (kind) { walkTo(place(kind)); },
+    jar: function () {
+      return jar ? { count: jar.count(), steps: jar.steps(), bodies: jar.bodies(), ms: jar.ms() }
+        : { count: 0, steps: 0, bodies: [], ms: 0 };
+    }
   };
 })();

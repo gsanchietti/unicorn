@@ -1,7 +1,8 @@
 /* art-town.js - the painted pieces of the street (the fairy town), in the style
  * of the bedroom-wall mural: dark uneven ink outlines, colored-pencil fills a
  * little lighter at the edges, white dotted trims on the mushroom house.
- * Classic script: window.Town. Needs window.Art (js/art.js) loaded first.
+ * Classic script: window.Town. Needs window.Art (js/art.js) loaded first; reads
+ * the jar's body radii from window.Phys (js/physics.js) when it is there.
  *
  * Sizes: `M` is the size unit in CSS px that the street passes to build(). The
  * pieces are sized from it (see SIZE below: house 1.04 M tall, bakery 1.32 M with
@@ -38,6 +39,16 @@
  *                               jiggle 0..1: squash-and-wobble amount (the wobble's
  *                               phase comes from jiggle itself, so a jiggle easing
  *                               1 -> 0 wobbles and settles).
+ *   Town.drawJar(g, x, y, h, total, jiggle, bodies)
+ *                               with bodies ([{x, y, a, big}] in jar space, from
+ *                               Phys.jar, js/physics.js): the cached back of the
+ *                               jar (stand, glass), then each body as an
+ *                               Art.starSprite (big ones 2.2x), rotated by a and
+ *                               clipped to the glass, then the cached glass front
+ *                               (outline, highlights, rim, cork); total is unused.
+ *                               Jar space x 0..1, y 0..1 is a square of 58 x 58
+ *                               authored units (100 = h) with its top left at
+ *                               (4, 16): y 0 is the cork, y 0.955 the inner floor.
  *   Town.drawSign(g, x, y, r, kind, t)
  *                               a round picture sign centered at (x, y), radius r.
  *                               kind: 'star' (sky gate), 'cake' (bakery), 'octopus'
@@ -990,13 +1001,7 @@
     if (jarN >= 8) { jarCache = {}; jarN = 0; }
     jarN++;
     var k = h / 100, w = Math.round(66 * k), T = surface(w, Math.round(h), k, 50), g = T.g;
-    var iw = Math.max(LW, 1.4) / k, id = iw * 0.62;
-    // the stone stand
-    piece(T, rrectP(8, 91.4, 50, 8, 2.4), C.stone, C.stoneDeep, { ink: iw * 0.9 });
-    piece(T, polyP([[17, 80], [49, 80], [45.6, 92], [20.4, 92]]), '#cbc1d2', C.stoneDeep, { ink: iw * 0.9 });
-    piece(T, rrectP(10, 74, 46, 7.4, 2.6), '#e2dbe6', C.stoneDeep, { ink: iw * 0.9 });
-    // the glass, behind the stars
-    jarP(g); g.fillStyle = 'rgba(214,236,246,0.5)'; g.fill();
+    jarBack(T, k);
     // the stars, piled from the bottom, never past the shoulder
     var x0 = 11.4, inW = 43.2, floor = 72.4, ceil = 31;
     var rs = inW / 11.5, rb = rs * 2.1;
@@ -1022,17 +1027,45 @@
       stamp2(g, sB, x0 + inW * (col + 0.5) / nRow, y + (rnd() - 0.5) * rb * 0.2, k, (rnd() - 0.5) * 0.6);
     }
     g.restore();
-    // the glass in front: ink outline, soft highlights
+    jarFront(T, k);
+    return (jarCache[key] = { c: T.c, w: w, h: Math.round(h) });
+  }
+  // behind the stars: the stone stand and the glass
+  function jarBack(T, k) {
+    var g = T.g, iw = Math.max(LW, 1.4) / k;
+    piece(T, rrectP(8, 91.4, 50, 8, 2.4), C.stone, C.stoneDeep, { ink: iw * 0.9 });
+    piece(T, polyP([[17, 80], [49, 80], [45.6, 92], [20.4, 92]]), '#cbc1d2', C.stoneDeep, { ink: iw * 0.9 });
+    piece(T, rrectP(10, 74, 46, 7.4, 2.6), '#e2dbe6', C.stoneDeep, { ink: iw * 0.9 });
+    jarP(g); g.fillStyle = 'rgba(214,236,246,0.5)'; g.fill();
+  }
+  // in front of the stars: the glass's ink outline and soft highlights, the rim and the cork
+  function jarFront(T, k) {
+    var g = T.g, iw = Math.max(LW, 1.4) / k, id = iw * 0.62;
     g.strokeStyle = 'rgba(255,255,255,0.8)'; g.lineWidth = 3; g.lineCap = 'round';
     g.beginPath(); g.moveTo(12.6, 37); g.lineTo(12.6, 63); g.stroke();
     g.lineWidth = 2; g.strokeStyle = 'rgba(255,255,255,0.6)';
     g.beginPath(); g.moveTo(17.4, 30.6); g.quadraticCurveTo(14.6, 31.4, 13.4, 33.4); g.moveTo(54, 50); g.lineTo(54, 64); g.stroke();
     inkPath(T, g, jarP, iw * 1.1);
-    // the rim and the cork
     piece(T, rrectP(23.5, 4.6, 19, 9, 3), '#d7a873', '#9c6c3c', { ink: iw * 0.9 });
     jarRim(g, iw);
     line(g, function (g) { g.moveTo(27, 8); g.lineTo(31, 8.4); g.moveTo(35, 10); g.lineTo(39.4, 9.6); }, id, 0.5);
-    return (jarCache[key] = { c: T.c, w: w, h: Math.round(h) });
+  }
+  // The physics jar's layers at height h, cached: back, front (both the full
+  // jar's size) and the two star sprites.
+  function jarLayers(h) {
+    var key = 'phys:' + Math.round(h);
+    if (jarCache[key]) return jarCache[key];
+    if (jarN >= 8) { jarCache = {}; jarN = 0; }
+    jarN++;
+    var k = h / 100, w = Math.round(66 * k), hh = Math.round(h);
+    var B = surface(w, hh, k, 50), F = surface(w, hh, k, 50);
+    jarBack(B, k);
+    jarFront(F, k);
+    var rs = JAR_S * k * physR().small * STAR_K;
+    return (jarCache[key] = {
+      back: B.c, front: F.c, w: w, h: hh, k: k,
+      small: Art.starSprite(rs, DPR, { glow: false }), big: Art.starSprite(rs * 2.2, DPR, { glow: false })
+    });
   }
   function jarRim(g, iw) {
     var p = rrectP(18.6, 11.6, 28.8, 5.4, 2.4);
@@ -1049,15 +1082,42 @@
     g.restore();
   }
 
-  function drawJar(g, x, y, h, total, jiggle) {
-    total = Math.max(0, Math.floor(total || 0));
-    var s = jarSprite(h, total), j = jiggle || 0;
-    var k = j * Math.sin(j * Math.PI * 5);
-    var sx = 1 + 0.08 * k, sy = 1 - 0.08 * k;
+  // Jar space (js/physics.js: a unit box, y down) on the authored jar: the box's
+  // side is JAR_S units, its top left corner at (JAR_X, JAR_Y), so x 0..1 spans the
+  // glass a little past its walls and y 0 is the bottom of the cork.
+  var JAR_S = 58, JAR_X = 4, JAR_Y = 16, STAR_K = 1.6;   // STAR_K: star sprite radius / body radius
+  function physR() { return (window.Phys && window.Phys.jar.R) || { small: 0.024, big: 0.0528 }; }
+  function drawJar(g, x, y, h, total, jiggle, bodies) {
+    var j = jiggle || 0;
+    var kk = j * Math.sin(j * Math.PI * 5);
+    var sx = 1 + 0.08 * kk, sy = 1 - 0.08 * kk;
     g.save();
     g.translate(x, y);
     g.scale(sx, sy);
-    g.drawImage(s.c, -s.w / 2, -s.h, s.w, s.h);
+    if (bodies) {
+      var L = jarLayers(h), k = L.k;
+      g.drawImage(L.back, -L.w / 2, -L.h, L.w, L.h);
+      g.save();
+      g.translate(-L.w / 2, -L.h);
+      g.scale(k, k);
+      jarP(g); g.clip();
+      var ik = 1 / k;
+      for (var i = 0; i < bodies.length; i++) {
+        var b = bodies[i], s = b.big ? L.big : L.small, w = s.lw * ik, hh = s.lh * ik;
+        var px = JAR_X + b.x * JAR_S, py = JAR_Y + b.y * JAR_S;
+        g.translate(px, py);
+        g.rotate(b.a);
+        g.drawImage(s, -w / 2, -hh / 2, w, hh);
+        g.rotate(-b.a);
+        g.translate(-px, -py);
+      }
+      g.restore();
+      g.drawImage(L.front, -L.w / 2, -L.h, L.w, L.h);
+    } else {
+      total = Math.max(0, Math.floor(total || 0));
+      var spr = jarSprite(h, total);
+      g.drawImage(spr.c, -spr.w / 2, -spr.h, spr.w, spr.h);
+    }
     g.restore();
   }
 
