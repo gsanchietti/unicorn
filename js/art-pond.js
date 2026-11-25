@@ -43,7 +43,7 @@
  *                               (g.drawImage(c, x - w / 2, y - h / 2, w, h)). The scene
  *                               may draw it smaller (in landscape it is at most 0.16 H
  *                               tall) and squashes it for its jiggle. The caught
- *                               octopuses sit along its middle, at half their size.
+ *                               octopuses sit along its middle, at 0.65 of their size.
  *   Pond.bubble(r) -> {c, r}    a soap bubble of radius r CSS px, with a rainbow sheen
  *                               and a highlight. c is a canvas of c.lw x c.lw CSS px
  *                               (x DPR) with the bubble at its center; the scene draws
