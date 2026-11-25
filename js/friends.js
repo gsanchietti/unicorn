@@ -26,7 +26,23 @@
  *                                 p      0..1, the progress of that state: the walk
  *                                        phase (one full step cycle per 1), how far
  *                                        eating has got, how far the happy wiggle is
- *   Everyone smiles at rest. The husky keeps its plush look (big glittery blue eyes,
+ *   Friends.buildOctopus(h, DPR)
+ *                               pre-renders the pond's reversible octopus h CSS px tall
+ *                               (about 1.15 h wide). Not a bakery friend: it is not in
+ *                               KINDS. The pond scene calls it from its resize().
+ *   Friends.octopus(g, x, y, pose)
+ *                               draws it CENTERED at (x, y). pose = {t, side, flip, giggle}:
+ *                                 t       time in seconds (a soft breathing squash)
+ *                                 side    'blue' | 'red': the side it shows at flip 0
+ *                                 flip    0..1 turns it inside out to the other side: a
+ *                                         squash flat (0..0.5), then a pop out to the
+ *                                         other side (0.5..1, a little overshoot)
+ *                                 giggle  0..1 shakes it, the red side with closed,
+ *                                         happy eyes
+ *                               The blue side is gently grumpy (droopy half-shut eyes,
+ *                               a small soft pout, never scary); the red side smiles.
+ *                               Only cached canvases and transforms per frame.
+ *   Everyone smiles at rest (except the octopus's blue side). The husky keeps its plush look (big glittery blue eyes,
  *   light-blue inner ears, cream muzzle); Pagi, the mouse and the lizard keep their
  *   big round googly eyes with black pupils. Pagi's collar has no letters (nothing to read).
  */
@@ -727,5 +743,99 @@
     if (wall[kind]) drawWall(g, wall[kind], x, y, pose);
   }
 
-  window.Friends = { KINDS: KINDS, build: build, draw: draw };
+  // ========================================================== the octopus
+  // The reversible octopus of the bubble pond (not a bakery friend: not in KINDS).
+  // PLACEHOLDER drawing: the designer replaces buildOctopus / drawOctopus, keeping
+  // the API in the header. Three faces are cached: the blue side (gently grumpy:
+  // droopy half-shut eyes, a small pout), the red side (open eyes, a smile) and the
+  // red side giggling (eyes shut in happy arcs, a wide open smile).
+  var oc = null;
+  var OCTO = { blue: '#6f9fe0', blueDeep: '#3c6db8', red: '#ea5f6f', redDeep: '#c23e54', cheek: 'rgba(255,170,190,0.7)' };
+
+  function buildOctopus(h, dpr) {
+    var w = h * 1.15, pad = Math.max(2, h * 0.04);
+    function face(body, deep, mood) {
+      var c = Art.makeCanvas((w + 2 * pad) * dpr, (h + 2 * pad) * dpr), g = c.getContext('2d');
+      c.lw = w + 2 * pad; c.lh = h + 2 * pad;
+      g.scale(dpr, dpr); g.translate(pad, pad);
+      var lw = Math.max(1.4, h * 0.035), cx = w / 2;
+      function shape() {
+        g.beginPath();
+        g.moveTo(w * 0.1, h * 0.62);
+        g.bezierCurveTo(w * 0.06, h * 0.05, w * 0.94, h * 0.05, w * 0.9, h * 0.62);
+        // five round tentacle tips along the bottom
+        var n = 5, x0 = w * 0.9, x1 = w * 0.1;
+        for (var i = 0; i < n; i++) {
+          var a = x0 + (x1 - x0) * i / n, b = x0 + (x1 - x0) * (i + 1) / n;
+          g.bezierCurveTo(a, h * 0.98, b, h * 0.98, b, h * 0.62 + (i < n - 1 ? h * 0.06 : 0));
+        }
+        g.closePath();
+      }
+      shape(); g.fillStyle = body; g.fill();
+      Art.pencil(c, deep, mood === 'grumpy' ? 31 : 32, 0.8);
+      g.fillStyle = 'rgba(255,255,255,0.35)';
+      g.beginPath(); g.ellipse(w * 0.36, h * 0.25, w * 0.1, h * 0.07, -0.5, 0, TAU); g.fill();
+      shape(); Art.ink(g, lw); g.stroke();
+      var ey = h * 0.42, ex = w * 0.17, er = h * 0.085;
+      g.fillStyle = Art.PAL.ink;
+      if (mood === 'grumpy') {
+        // droopy, half-shut eyes and a small soft pout: grumpy, never scary
+        [-1, 1].forEach(function (sd) {
+          g.beginPath(); g.arc(cx + sd * ex, ey, er, 0, Math.PI); g.closePath(); g.fill();
+          Art.ink(g, lw * 0.8);
+          g.beginPath(); g.moveTo(cx + sd * ex - er * 1.2, ey - er * 0.1 + sd * er * 0.15 * -1); g.lineTo(cx + sd * ex + er * 1.2, ey - er * 0.1 + sd * er * 0.15); g.stroke();
+        });
+        Art.ink(g, lw * 0.9);
+        g.beginPath(); g.arc(cx, h * 0.64, h * 0.07, 1.15 * Math.PI, 1.85 * Math.PI); g.stroke();
+      } else {
+        g.fillStyle = OCTO.cheek;
+        g.beginPath(); g.ellipse(cx - w * 0.29, h * 0.55, h * 0.07, h * 0.045, 0, 0, TAU); g.fill();
+        g.beginPath(); g.ellipse(cx + w * 0.29, h * 0.55, h * 0.07, h * 0.045, 0, 0, TAU); g.fill();
+        if (mood === 'giggle') {
+          Art.ink(g, lw);
+          [-1, 1].forEach(function (sd) { g.beginPath(); g.arc(cx + sd * ex, ey + er * 0.4, er * 0.9, 1.15 * Math.PI, 1.85 * Math.PI); g.stroke(); });
+          g.beginPath(); g.arc(cx, h * 0.55, h * 0.1, 0, Math.PI); g.closePath();
+          g.fillStyle = '#7a2438'; g.fill(); g.stroke();
+        } else {
+          [-1, 1].forEach(function (sd) {
+            g.fillStyle = Art.PAL.ink; g.beginPath(); g.arc(cx + sd * ex, ey, er, 0, TAU); g.fill();
+            g.fillStyle = '#ffffff'; g.beginPath(); g.arc(cx + sd * ex - er * 0.3, ey - er * 0.35, er * 0.35, 0, TAU); g.fill();
+          });
+          Art.ink(g, lw);
+          g.beginPath(); g.arc(cx, h * 0.55, h * 0.08, 0.15 * Math.PI, 0.85 * Math.PI); g.stroke();
+        }
+      }
+      return c;
+    }
+    oc = {
+      h: h,
+      blue: face(OCTO.blue, OCTO.blueDeep, 'grumpy'),
+      red: face(OCTO.red, OCTO.redDeep, 'happy'),
+      giggle: face(OCTO.red, OCTO.redDeep, 'giggle')
+    };
+  }
+
+  function octBack(p) { p = Math.min(1, Math.max(0, p)) - 1; return 1 + p * p * (2.6 * p + 1.6); }
+  // pose = {t, side, flip, giggle}: see the header.
+  function drawOctopus(g, x, y, pose) {
+    if (!oc) return;
+    var t = pose.t || 0, f = pose.flip || 0, gig = pose.giggle || 0;
+    var side = pose.side === 'red' ? 'red' : 'blue', other = side === 'red' ? 'blue' : 'red';
+    var show = f < 0.5 ? side : other;
+    var sx = 1 + 0.03 * Math.sin(t * 2.6), sy = 1 - 0.03 * Math.sin(t * 2.6), rot = 0;
+    if (f > 0 && f < 1) {
+      if (f < 0.5) { var q = f / 0.5; sx *= 1 + 0.45 * q; sy *= 1 - 0.75 * q; }       // squash flat
+      else { var b = octBack((f - 0.5) / 0.5); sx *= 1.45 - 0.45 * b; sy *= 0.25 + 0.75 * b; }   // pop out
+    }
+    if (gig > 0) { rot = Math.sin(t * 28) * 0.14 * gig; sy *= 1 + 0.05 * gig * Math.sin(t * 19); }
+    var spr = show === 'blue' ? oc.blue : (gig > 0.3 ? oc.giggle : oc.red);
+    g.save();
+    g.translate(x, y);
+    if (rot) g.rotate(rot);
+    g.scale(sx, sy);
+    g.drawImage(spr, -spr.lw / 2, -spr.lh / 2, spr.lw, spr.lh);
+    g.restore();
+  }
+
+  window.Friends = { KINDS: KINDS, build: build, draw: draw, buildOctopus: buildOctopus, octopus: drawOctopus };
 })();

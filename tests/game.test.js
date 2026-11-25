@@ -2,7 +2,7 @@
 const { test, before, after } = require('node:test');
 const assert = require('node:assert');
 const path = require('path');
-const { startServer, launch, openGame, scene, tapPlay, playStars, playBakery, hold } = require('./helpers');
+const { startServer, launch, openGame, scene, tapPlay, playStars, playBakery, playPond, hold } = require('./helpers');
 
 const SIZES = [{ name: 'portrait', w: 390, h: 844 }, { name: 'landscape', w: 844, h: 390 }];
 let server, browser;
@@ -759,18 +759,167 @@ each('home from the bakery lands at its door', async ({ page }) => {
   assert.ok(Math.abs(s.x - door.x) < 0.05 * s.ww, 'x ' + s.x + ' door ' + door.x);
 });
 
-// The pond is the only place still closed: Bella walks there, it wiggles, and she stays on the street.
-each('the pond is still closed', async ({ page }) => {
+// The house is the only place still closed: Bella walks there, it wiggles, and she stays on the street.
+each('the house is still closed', async ({ page }) => {
   await toStreet(page);
   await ev(page, () => {
-    const b = window.__bella.street, p = b.places().find((q) => q.kind === 'pond');
+    const b = window.__bella.street, p = b.places().find((q) => q.kind === 'house');
     b.st.x = p.x - innerWidth * 0.1;
-    b.enter('pond');
+    b.enter('house');
   });
   await waitFor(page, () => window.__bella.street.st.target === null, 10000);
   await hold(page, 900);
   assert.strictEqual(await scene(page), 'street');
 });
+
+// ---------------------------------------------------------------- the bubble pond
+const pd = (page) => ev(page, () => {
+  const s = window.__bella.pond.st;
+  return {
+    mode: s.mode, caught: s.caught, party: s.party, enters: s.enters, held: s.held,
+    bubbles: s.bubbles.map((b) => ({ x: b.x, y: b.y, r: b.r })),
+    octos: s.octos.map((o) => ({ x: o.x, y: o.y, r: o.r, side: o.side, flip: o.flip, age: o.age, state: o.state }))
+  };
+});
+// No new octopus comes by itself and the ones there go: the test places its own.
+const quietPond = (page) => ev(page, () => { const s = window.__bella.pond.st; s.spawnT = 1e9; s.octos.length = 0; });
+// An octopus right in front of the horn, and a bubble shot at it.
+const catchOne = (page) => ev(page, () => {
+  const p = window.__bella.pond, h = p.horn();
+  p.spawnOcto(h.x + innerWidth * 0.2, h.y);
+  p.shoot();
+});
+const pondPlace = (page) => ev(page, () => window.__bella.street.places().find((p) => p.kind === 'pond'));
+
+each('the pond opens from the street', async ({ page }) => {
+  await playPond(page);
+  assert.strictEqual(await scene(page), 'pond');
+  const vis = await ev(page, () => { const s = getComputedStyle(document.getElementById('home')); return s.display !== 'none' && s.visibility !== 'hidden' && +s.opacity > 0; });
+  assert.strictEqual(vis, true, '#home visible');
+  await ev(page, () => window.__bella.goHome());
+  await waitFor(page, () => window.__bella.scene() === 'street');
+  const s = await streetSt(page), p = await pondPlace(page);
+  assert.ok(Math.abs(s.x - p.x) < 0.05 * s.ww, 'x ' + s.x + ' pond ' + p.x);
+});
+
+each('bubbles leave the horn by themselves', async ({ page }) => {
+  await playPond(page);
+  await hold(page, 2000);
+  const n = (await pd(page)).bubbles.length;
+  assert.ok(n >= 2, n + ' bubbles');
+});
+
+each('a bubble flips an octopus and gives a star', async ({ page }) => {
+  await playPond(page);
+  await quietPond(page);
+  const s0 = await starTotal(page), c0 = (await pd(page)).caught;
+  await catchOne(page);
+  await waitFor(page, (c) => window.__bella.pond.st.caught === c + 1, 3000, c0);
+  assert.strictEqual(await starTotal(page), s0 + 1);
+  await waitFor(page, () => window.__bella.pond.st.octos.some((o) => o.side === 'red'), 1500);
+});
+
+each('each octopus gives one star', async ({ page }) => {
+  await playPond(page);
+  await quietPond(page);
+  const s0 = await starTotal(page), c0 = (await pd(page)).caught;
+  await ev(page, () => { const p = window.__bella.pond, h = p.horn(); p.spawnOcto(h.x + innerWidth * 0.2, h.y); });
+  for (let i = 0; i < 10; i++) { await ev(page, () => window.__bella.pond.shoot()); await hold(page, 30); }
+  await hold(page, 2500);
+  assert.strictEqual((await pd(page)).caught, c0 + 1);
+  assert.strictEqual(await starTotal(page), s0 + 1);
+});
+
+test('a grumpy octopus flips by itself after 20 s', () => single(async ({ page }) => {
+  await playPond(page);
+  await quietPond(page);
+  const s0 = await starTotal(page);
+  await ev(page, () => { const o = window.__bella.pond.spawnOcto(); o.age = 19.5; });
+  await waitFor(page, () => window.__bella.pond.st.octos.some((o) => o.side === 'red'), 1000);
+  assert.strictEqual(await starTotal(page), s0 + 1);
+}));
+
+each('every 10 caught gives confetti and bravissima', async ({ page }) => {
+  await playPond(page);
+  await quietPond(page);
+  await ev(page, () => { window.__bella.pond.st.caught = 9; });
+  assert.strictEqual((await pd(page)).party, 0);
+  await catchOne(page);
+  await waitFor(page, () => window.__bella.pond.st.caught === 10, 3000);
+  assert.ok((await pd(page)).party > 0, 'party');
+});
+
+each('holding all the time still catches octopuses', async ({ page }, s) => {
+  await playPond(page);
+  await page.mouse.move(s.w / 2, s.h / 2);
+  await page.mouse.down();
+  await hold(page, 8000);
+  const r = await pd(page);
+  await page.mouse.up();
+  assert.strictEqual(r.held, true);
+  assert.ok(r.caught >= 1, 'caught ' + r.caught);
+});
+
+test('rapid taps stay within budget', () => single(async ({ page }) => {
+  await playPond(page);
+  let maxB = 0, maxO = 0;
+  for (let i = 0; i < 60; i++) {
+    await page.mouse.click(390 * (0.2 + 0.6 * Math.random()), 844 * (0.3 + 0.5 * Math.random()));
+    await hold(page, 100);
+    const r = await pd(page);
+    maxB = Math.max(maxB, r.bubbles.length); maxO = Math.max(maxO, r.octos.length);
+  }
+  assert.ok(maxB <= 24, 'bubbles ' + maxB);
+  assert.ok(maxO <= 6, 'octopuses ' + maxO);
+  assert.ok(maxB > 6, 'the taps shot bubbles: ' + maxB);
+  await frames(page, 125);
+  const cost = await ev(page, () => window.__bella.frameMs());
+  console.log('pond render ms/frame after rapid taps:', cost.toFixed(3));
+  assert.ok(cost > 0 && cost < 8, 'render ' + cost.toFixed(2) + ' ms');
+}));
+
+each('home goes to the pond on the street and back starts fresh', async ({ page }) => {
+  await playPond(page);
+  await quietPond(page);
+  await catchOne(page);
+  await waitFor(page, () => window.__bella.pond.st.caught === 1, 3000);
+  const s1 = await starTotal(page);
+  await ev(page, () => window.__bella.goHome());
+  await waitFor(page, () => window.__bella.scene() === 'street');
+  const s = await streetSt(page), p = await pondPlace(page);
+  assert.ok(Math.abs(s.x - p.x) < 0.05 * s.ww, 'x ' + s.x + ' pond ' + p.x);
+  await hold(page, 600);                    // the fade in drops a go()
+  await ev(page, () => window.__bella.street.enter('pond'));
+  await waitFor(page, () => window.__bella.scene() === 'pond' && window.__bella.pond.st.mode === 'fly', 10000);
+  const r = await pd(page);
+  assert.strictEqual(r.caught, 0);
+  assert.strictEqual(r.enters, 2);
+  assert.strictEqual(await starTotal(page), s1);
+});
+
+test('resize mid-game keeps everything on screen', () => single(async ({ page }) => {
+  await playPond(page);
+  await hold(page, 3000);                   // bubbles out, octopuses swimming
+  for (const vp of [LANDSCAPE, PORTRAIT, LANDSCAPE]) {
+    await page.setViewport(vp);
+    await hold(page, 700);
+    const r = await ev(page, () => {
+      const p = window.__bella.pond, s = p.st, n = p.nursery();
+      return {
+        W: innerWidth, H: innerHeight, nb: n.y + n.h, hero: { x: s.hero.x, y: s.hero.y },
+        bubbles: s.bubbles.map((b) => [b.x, b.y]),
+        octos: s.octos.map((o) => [o.x, o.y, o.state])
+      };
+    });
+    const at = vp.width + 'x' + vp.height;
+    const inside = (x, y) => x >= 0 && x <= r.W && y >= 0 && y <= r.H;
+    assert.ok(inside(r.hero.x, r.hero.y), 'Bella on screen at ' + at + ': ' + JSON.stringify(r.hero));
+    assert.deepStrictEqual(r.bubbles.filter(([x, y]) => !inside(x, y)), [], 'bubbles on screen at ' + at);
+    assert.deepStrictEqual(r.octos.filter(([x, y]) => !inside(x, y)), [], 'octopuses on screen at ' + at);
+    assert.deepStrictEqual(r.octos.filter(([, y, state]) => state === 'swim' && y < r.nb), [], 'swimming octopuses below the nursery at ' + at);
+    assert.ok(r.octos.length > 0 && r.bubbles.length > 0, 'something to check at ' + at + ': ' + JSON.stringify(r));
+  }
+}));
 
 // ---------------------------------------------------------------- preview next to the live game
 // The live game (main) and the preview (main's next/) share one origin. Each must keep

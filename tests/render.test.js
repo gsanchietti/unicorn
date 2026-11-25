@@ -5,7 +5,7 @@ const { test, before, after } = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
-const { startServer, launch, openGame, scene, tapPlay, playStars, playBakery, hold } = require('./helpers');
+const { startServer, launch, openGame, scene, tapPlay, playStars, playBakery, playPond, hold } = require('./helpers');
 
 const OUT = process.env.RENDER_OUT || path.join(__dirname, 'out');
 const BUDGET_MS = 8;
@@ -28,7 +28,16 @@ const frames = (page, n) => page.evaluate((n) => new Promise((done) => {
 async function open(w, h, fn) {
   const g = await openGame(browser, { w, h, url: server.url });
   try { await fn(g.page); assert.deepStrictEqual(g.errors, []); }
-  finally { await g.ctx.close(); }
+  finally {
+    // Let the service worker finish installing first: closing the context while it
+    // still caches the game files made the next createBrowserContext fail
+    // ("Session with given id not found").
+    await g.page.evaluate(() => Promise.race([
+      navigator.serviceWorker ? navigator.serviceWorker.ready : null,
+      new Promise((r) => setTimeout(r, 3000))
+    ])).catch(() => {});
+    await g.ctx.close();
+  }
 }
 
 async function startFlying(page) {
@@ -251,6 +260,53 @@ test('bakery sheet', () => open(390, 844, async (page) => {
     return c.toDataURL('image/png');
   });
   fs.writeFileSync(path.join(OUT, 'bakery-sheet.png'), Buffer.from(url.split(',')[1], 'base64'));
+}));
+
+// ---------------------------------------------------------------- the bubble pond
+// Keep the pond full: 24 bubbles and 6 octopuses (new ones replace the caught).
+const fillPond = (page) => ev(page, () => {
+  const p = window.__bella.pond;
+  window.__fill = setInterval(() => {
+    while (p.st.bubbles.length < 24) p.shoot();
+    if (p.st.octos.length < 6) p.spawnOcto(innerWidth * (0.55 + 0.4 * Math.random()));
+  }, 30);
+});
+const stopFill = (page) => ev(page, () => clearInterval(window.__fill));
+
+test('pond in day and night, within the render budget', () => open(390, 844, async (page) => {
+  await playPond(page);
+  await ev(page, () => window.__bella.setTime('day'));
+  await hold(page, 2500);                   // bubbles out, octopuses swimming in
+  await shot(page, 'pond-day');
+  await fillPond(page);
+  await hold(page, 300);
+  await frames(page, 125);
+  const cost = await ev(page, () => window.__bella.frameMs());
+  const n = await ev(page, () => [window.__bella.pond.st.bubbles.length, window.__bella.pond.st.octos.length]);
+  await stopFill(page);
+  console.log('pond render ms/frame @390x844 DPR2 (' + n[0] + ' bubbles, ' + n[1] + ' octopuses):', cost.toFixed(3));
+  fs.writeFileSync(path.join(OUT, 'pond-cost.json'), JSON.stringify({ full: cost, bubbles: n[0], octos: n[1] }, null, 2) + '\n');
+  await ev(page, () => window.__bella.setTime('night'));
+  await hold(page, 2500);                   // the night eases in
+  await shot(page, 'pond-night');
+  assert.ok(n[0] >= 20 && n[1] >= 5, 'a full pond: ' + n);
+  assert.ok(cost > 0, 'pond: frameMs() measured nothing');
+  assert.ok(cost < BUDGET_MS, 'pond render ' + cost.toFixed(2) + ' ms >= ' + BUDGET_MS + ' ms');
+}));
+
+test('pond: an octopus flips', () => open(390, 844, async (page) => {
+  await playPond(page);
+  await ev(page, () => { window.__bella.setTime('day'); const s = window.__bella.pond.st; s.spawnT = 1e9; s.octos.length = 0; });
+  await ev(page, () => { const p = window.__bella.pond, h = p.horn(); p.spawnOcto(h.x + innerWidth * 0.25, h.y); p.shoot(); });
+  await page.waitForFunction(() => window.__bella.pond.st.octos.some((o) => o.state === 'caught' && o.flip > 0.25), { timeout: 4000, polling: 'raf' });
+  await shot(page, 'pond-catch');
+}));
+
+test('pond, phone landscape', () => open(844, 390, async (page) => {
+  await playPond(page);
+  await ev(page, () => window.__bella.setTime('day'));
+  await hold(page, 3000);
+  await shot(page, 'pond-landscape');
 }));
 
 for (const s of [

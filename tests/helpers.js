@@ -92,4 +92,19 @@ async function playBakery(page) {
   await wait(() => window.__bella.scene() === 'bakery' && window.__bella.bakery.st.mode === 'pick');
 }
 
-module.exports = { startServer, launch, openGame, scene, tapPlay, playStars, playBakery, hold };
+// Start page -> street -> into the bubble pond, flying (mode 'fly'). Bella is put at
+// the pond first, as in playBakery.
+async function playPond(page) {
+  const wait = (fn) => page.waitForFunction(fn, { timeout: 15000, polling: 50 });
+  await tapPlay(page);
+  await wait(() => window.__bella.scene() === 'street');
+  await hold(page, 600);
+  await page.evaluate(() => {
+    const b = window.__bella.street, p = b.places().find((q) => q.kind === 'pond');
+    b.st.x = p.x;
+    b.enter('pond');
+  });
+  await wait(() => window.__bella.scene() === 'pond' && window.__bella.pond.st.mode === 'fly');
+}
+
+module.exports = { startServer, launch, openGame, scene, tapPlay, playStars, playBakery, playPond, hold };
