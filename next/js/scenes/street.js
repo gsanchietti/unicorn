@@ -6,17 +6,19 @@
  *   gate    (sky gate, star sign)  -> "Andiamo!" and the star game
  *   bakery  (cake sign)            -> a door chime and the bakery
  *   square  (the star jar)         -> the jar jiggles, the total rises over it as stars
- *   house, pond (octopus sign)     -> closed for now: a wiggle, sparkles and a door chime
+ *   pond    (octopus sign)         -> a bubble and the bubble pond
+ *   house                          -> closed for now: a wiggle, sparkles and a door chime
  * A tap on a place cancels any hold walk; a new hold cancels the walk to a place.
  *
  * Registers the 'street' scene with window.Core (home: 'title', day/night cycle
  * on, music: 'street'). enter({from}): from 'stars' Bella lands by the sky gate,
- * from 'bakery' at the bakery door, otherwise she starts at 0.22 of the street.
+ * from 'bakery' at the bakery door, from 'pond' by the pond, otherwise she starts
+ * at 0.22 of the street.
  * Draws Bella at the star game's flying scale (Characters keeps 2 cached scales).
  * Pose: run 0, walk 0..1 (eased with movement), stride (walk phase in cycles,
  * grows with distance walked so the hooves don't slide).
  * Uses window.Art, window.Town (js/art-town.js), window.Characters, window.Backdrop;
- * audio only through Core.snd ('clipClop', 'say' 'andiamo', 'star', 'door').
+ * audio only through Core.snd ('clipClop', 'say' 'andiamo', 'star', 'door', 'bubble').
  *
  * Debug hook window.__bella.street:
  *   st          {x, camX, target, walking, dir, jarShow, jiggle} (world x of Bella,
@@ -153,13 +155,17 @@
   function arrive(i) {
     var p = PLACES[i];
     st.target = null;
-    if (p.kind === 'gate' || p.kind === 'bakery') {
+    if (p.kind === 'gate' || p.kind === 'bakery' || p.kind === 'pond') {
       if (entering) return;
       entering = true;
       if (p.kind === 'gate') {
         st.dir = 1;
         snd('say', 'andiamo');
         Core.go('stars', { hero: heroBox() });
+      } else if (p.kind === 'pond') {
+        st.dir = 1;
+        snd('bubble');
+        Core.go('pond', { hero: heroBox() });
       } else {
         snd('door');
         Core.go('bakery');
@@ -400,7 +406,8 @@
     enter: function (args) {
       sync();
       var from = args && args.from;
-      st.x = from === 'stars' ? placeX(place('gate')) : from === 'bakery' ? standX(place('bakery')) : START_F * L.ww;
+      st.x = from === 'stars' ? placeX(place('gate')) : from === 'bakery' ? standX(place('bakery'))
+        : from === 'pond' ? standX(place('pond')) : START_F * L.ww;
       st.dir = 1; st.target = null; st.walking = false; st.jarShow = 0; st.jiggle = 0;
       st.camX = camGoal();
       pose.walk = 0;

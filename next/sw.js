@@ -3,7 +3,7 @@
  * pick up the new version (it applies on the next launch). */
 'use strict';
 
-var VERSION = 'bella-next-5';
+var VERSION = 'bella-next-6';
 var FILES = [
   './',
   'index.html',
@@ -12,6 +12,7 @@ var FILES = [
   'js/art.js',
   'js/art-town.js',
   'js/art-bakery.js',
+  'js/art-pond.js',
   'js/characters.js',
   'js/friends.js',
   'js/audio.js',
@@ -20,6 +21,7 @@ var FILES = [
   'js/scenes/title.js',
   'js/scenes/street.js',
   'js/scenes/bakery.js',
+  'js/scenes/pond.js',
   'js/scenes/stars.js',
   'assets/fonts/title.woff2',
   'assets/icons/favicon-16.png',
