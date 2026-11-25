@@ -12,8 +12,12 @@
  *
  *   Friends.KINDS = ['husky', 'pagi', 'mouse', 'lizard']   the order they visit in
  *   Friends.build(h, DPR)       pre-renders every friend h CSS px tall (sitting, with
- *                               the head; a walking friend is about as tall). The
- *                               scene calls it from its resize(); draw() only blits
+ *                               the head; a walking friend is about as tall). One size
+ *                               is cached at a time, and a call at the cached h and DPR
+ *                               does nothing: every scene that draws friends (bakery,
+ *                               pond, house) calls it in enter() with its own h, and from
+ *                               its resize(), so it never shows another scene's size.
+ *                               draw() only blits
  *                               cached canvases and moves them: no shadowBlur, no
  *                               filters, no grain per frame.
  *   Friends.draw(g, kind, x, y, pose)
@@ -29,7 +33,10 @@
  *   Friends.buildOctopus(h, DPR)
  *                               pre-renders the pond's reversible octopus h CSS px tall
  *                               (about 1.15 h wide). Not a bakery friend: it is not in
- *                               KINDS. The pond scene calls it from its resize().
+ *                               KINDS. As build(): one size cached, a no-op at the same
+ *                               h and DPR; the pond and the house call it in enter()
+ *                               and resize().
+ *   Friends.built() -> {h, dpr, octoH, octoDpr}   the sizes cached now (for the tests)
  *   Friends.octopus(g, x, y, pose)
  *                               draws it CENTERED at (x, y). pose = {t, side, flip, giggle}:
  *                                 t       time in seconds (a soft breathing squash)
@@ -734,7 +741,12 @@
     g.restore();
   }
 
+  // Every scene that draws friends calls build() (and buildOctopus()) in enter() with
+  // its own size; at the size already cached they do nothing.
+  var built = { h: 0, dpr: 0, octoH: 0, octoDpr: 0 };
   function build(h, dpr) {
+    if (h === built.h && dpr === built.dpr && hk) return;
+    built.h = h; built.dpr = dpr;
     hk = buildHusky(h, dpr);
     wall.pagi = buildPagi(h, dpr);
     wall.mouse = buildMouse(h, dpr);
@@ -770,6 +782,8 @@
   };
 
   function buildOctopus(h, dpr) {
+    if (h === built.octoH && dpr === built.octoDpr && oc) return;
+    built.octoH = h; built.octoDpr = dpr;
     var k = h / OH, lw = (OW + 2 * OPAD) * k, lh = (OH + 2 * OPAD) * k;
     var cx = OW / 2;
     var IW = Math.max(3.2, 1.5 / k), ID = Math.max(2.5, 1.2 / k);     // ink: silhouette, face
@@ -1035,5 +1049,8 @@
     g.restore();
   }
 
-  window.Friends = { KINDS: KINDS, build: build, draw: draw, buildOctopus: buildOctopus, octopus: drawOctopus };
+  window.Friends = {
+    KINDS: KINDS, build: build, draw: draw, buildOctopus: buildOctopus, octopus: drawOctopus,
+    built: function () { return { h: built.h, dpr: built.dpr, octoH: built.octoH, octoDpr: built.octoDpr }; }
+  };
 })();

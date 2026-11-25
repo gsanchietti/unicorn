@@ -7,14 +7,15 @@
  *   bakery  (cake sign)            -> a door chime and the bakery
  *   square  (the star jar)         -> the jar jiggles, the total rises over it as stars
  *   pond    (octopus sign)         -> a bubble and the bubble pond
- *   house                          -> closed for now: a wiggle, sparkles and a door chime
+ *   house   (the orange house)     -> a wiggle, a door chime and hide and seek inside
  * A tap on a place cancels any hold walk; a new hold cancels the walk to a place.
  * A finger down on a far cloud in the upper half of the sky squishes it (a boing,
  * Backdrop.squish); a place under the finger wins, and the finger still holds.
  *
  * Registers the 'street' scene with window.Core (home: 'title', day/night cycle
  * on, music: 'street'). enter({from}): from 'stars' Bella lands by the sky gate,
- * from 'bakery' at the bakery door, from 'pond' by the pond, otherwise she starts
+ * from 'bakery' at the bakery door, from 'pond' by the pond, from 'house' at the
+ * house door, otherwise she starts
  * at 0.22 of the street.
  * Draws Bella at the star game's flying scale (Characters keeps 2 cached scales).
  * Pose: run 0, walk 0..1 (eased with movement), stride (walk phase in cycles,
@@ -22,7 +23,7 @@
  * The star jar is a Phys.jar world (js/physics.js, Matter.js): built on the first
  * enter from Core.stars(), then kept. On every enter the total is compared with
  * the last one shown here (in memory only): new stars drop() in. Coming from a
- * game ('stars', 'bakery', 'pond') with new stars, a big copy of the jar pops up
+ * game ('stars', 'bakery', 'pond', 'house') with new stars, a big copy of the jar pops up
  * in the middle of the screen (popBox(): center x, its middle at 0.38 H or higher
  * so it clears Bella, height min(0.42 H, 0.6 W, 1.1 u)), with a little overshoot and 'jarPop'. It stays while
  * the stars drop and settle (POP_MIN to POP_MAX s), then shrinks and slides
@@ -91,7 +92,7 @@
   // the after-game jar: shown POP_MIN..POP_MAX s, POP_SETTLE s after the last drop,
   // POP_OUT s to shrink away; at most DROP_MAX stars drop at once (15 a second)
   var POP_MIN = 3, POP_MAX = 5, POP_SETTLE = 1.2, POP_OUT = 0.6, DROP_MAX = 60;
-  var GAMES = { stars: 1, bakery: 1, pond: 1 };
+  var GAMES = { stars: 1, bakery: 1, pond: 1, house: 1 };
   var FOOT = 1050;          // rig y of Bella's hooves at rest (Characters.H = 1100)
 
   // L: size-dependent layout, set by resize()
@@ -199,7 +200,7 @@
   function arrive(i) {
     var p = PLACES[i];
     st.target = null;
-    if (p.kind === 'gate' || p.kind === 'bakery' || p.kind === 'pond') {
+    if (p.kind !== 'square') {
       if (entering) return;
       entering = true;
       if (p.kind === 'gate') {
@@ -210,20 +211,20 @@
         st.dir = 1;
         snd('bubble');
         Core.go('pond', { hero: heroBox() });
+      } else if (p.kind === 'house') {
+        placeFx[i].wig = 1;
+        snd('door');
+        Core.go('house');
       } else {
         snd('door');
         Core.go('bakery');
       }
       Core.after(1.2, function () { entering = false; });   // only if the go was dropped
-    } else if (p.kind === 'square') {
+    } else {
       total = Core.stars();
       st.jiggle = 1; st.jarShow = 3;
       for (var k = 0; k < 5; k++) (function (k) { Core.after(0.15 + k * 0.12, function () { snd('star', 4 + k); }); })(k);
       sparkle(placeX(i), L.gy - L.u * JAR_H * 0.8, 10);
-    } else {
-      placeFx[i].wig = 1;
-      snd('door');
-      sparkle(placeX(i), L.gy - Town.sprite(p.kind, false).h * 0.4, 8);
     }
   }
   // n sparkles around (x, y) in world coords, spread over about `spread` px (default L.u * 0.25)
@@ -541,7 +542,7 @@
       sync();
       var from = args && args.from;
       st.x = from === 'stars' ? placeX(place('gate')) : from === 'bakery' ? standX(place('bakery'))
-        : from === 'pond' ? standX(place('pond')) : START_F * L.ww;
+        : from === 'pond' ? standX(place('pond')) : from === 'house' ? standX(place('house')) : START_F * L.ww;
       st.dir = 1; st.target = null; st.walking = false; st.jarShow = 0; st.jiggle = 0; st.jarPop = 0; popOn = false;
       st.camX = camGoal();
       pose.walk = 0;
