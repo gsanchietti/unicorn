@@ -20,9 +20,12 @@
  * The star jar is a Phys.jar world (js/physics.js, Matter.js): built on the first
  * enter from Core.stars(), then kept. On every enter the total is compared with
  * the last one shown here (in memory only): new stars drop() in. Coming from a
- * game ('stars', 'bakery', 'pond') with new stars, a small copy of the jar pops
- * up at the top center (0.22 u tall) for 3 s, longer while stars still drop (at
- * most POP_MAX s), then slides away; it shares the square's world. More than
+ * game ('stars', 'bakery', 'pond') with new stars, a big copy of the jar pops up
+ * in the middle of the screen (popBox(): center x, its middle at 0.38 H or higher
+ * so it clears Bella, height min(0.42 H, 0.6 W, 1.1 u)), with a little overshoot and 'jarPop'. It stays while
+ * the stars drop and settle (POP_MIN to POP_MAX s), then shrinks and slides
+ * toward the town square (into its jar when that is on screen). It shares the
+ * square's world, so its stars scale with it. More than
  * DROP_MAX new stars at once: the jar is rebuilt settled from the total minus
  * DROP_MAX and only those drop. The world steps only while the square's jar is
  * within the screen +-L.u or the pop-up shows, and the page is visible.
@@ -38,6 +41,8 @@
  *               place's tap target
  *   worldW()    the street's width in CSS px
  *   enter(kind) same as a tap on that place
+ *   pop()       {x, y, h, s} of the after-game jar now (its middle, height and
+ *               scale), or null when it isn't shown
  *   jar()       {count, steps, bodies, ms}: the jar world's bodies now, its substeps
  *               so far, its bodies ([{x, y, a, big}] in jar space) and the average
  *               cost of a step() call in ms
@@ -80,7 +85,9 @@
   var BUTTERFLIES = [{ f: 0.045, ph: 0 }, { f: 0.39, ph: 2.1 }, { f: 0.8, ph: 4.2 }];
   var START_F = 0.22, END_F = [0.04, 0.96];
   var JAR_H = 0.35, SIGN_R = 0.09, SIGN_H = 0.42;   // in U
-  var POP_H = 0.22, POP_T = 3, POP_MAX = 9, DROP_MAX = 120;   // the after-game jar: height in U, seconds; stars
+  // the after-game jar: shown POP_MIN..POP_MAX s, POP_SETTLE s after the last drop,
+  // POP_OUT s to shrink away; at most DROP_MAX stars drop at once (15 a second)
+  var POP_MIN = 3, POP_MAX = 5, POP_SETTLE = 1.2, POP_OUT = 0.6, DROP_MAX = 60;
   var GAMES = { stars: 1, bakery: 1, pond: 1 };
   var FOOT = 1050;          // rig y of Bella's hooves at rest (Characters.H = 1100)
 
@@ -97,7 +104,7 @@
   var sparks = [];          // {x, y, vy, life, max} in world coords
   var placeFx = PLACES.map(function () { return { near: 0, wig: 0 }; });
   var S = {};
-  var jar = null, shown = null, popAge = 0, clinkT = 0, popOn = false;
+  var jar = null, shown = null, popAge = 0, popEnd = 0, popLast = 0, clinkT = 0, popOn = false;
 
   function place(kind) {
     for (var i = 0; i < PLACES.length; i++) if (PLACES[i].kind === kind) return i;
@@ -200,9 +207,11 @@
       sparkle(placeX(i), L.gy - Town.sprite(p.kind, false).h * 0.4, 8);
     }
   }
-  function sparkle(x, y, n) {
+  // n sparkles around (x, y) in world coords, spread over about `spread` px (default L.u * 0.25)
+  function sparkle(x, y, n, spread) {
+    var sp = spread || L.u * 0.25;
     for (var k = 0; k < n; k++) {
-      var a = Math.random() * TAU, r = L.u * (0.05 + Math.random() * 0.2);
+      var a = Math.random() * TAU, r = sp * (0.2 + Math.random() * 0.8);
       sparks.push({ x: x + Math.cos(a) * r, y: y + Math.sin(a) * r * 0.6, vy: -L.u * (0.1 + Math.random() * 0.15), life: 0, max: 0.7 + Math.random() * 0.5 });
     }
     if (sparks.length > 60) sparks.splice(0, sparks.length - 60);
@@ -220,11 +229,11 @@
         snd('star', 9);
         if (squareOnScreen()) {
           var p = jarPoint(placeX(place('square')), L.gy, L.u * JAR_H, jx, jy);
-          sparkle(p.x, p.y, 6);
+          sparkle(p.x, p.y, 6, L.u * JAR_H * 0.12);
         }
         if (popOn) {
-          var b = popBox(), q = jarPoint(b.x, b.y, b.h, jx, jy);
-          sparkle(q.x + st.camX, q.y, 5);
+          var b = popBox(), q = jarPoint(b.x, b.y + b.h * b.s / 2, b.h * b.s, jx, jy);
+          sparkle(q.x + st.camX, q.y, 5, b.h * b.s * 0.12);
         }
       }
     });
@@ -239,12 +248,21 @@
     var x = placeX(place('square')) - st.camX;
     return x > -L.u && x < W + L.u;
   }
-  // The pop-up's jar: bottom center and height, with its scale in (pop) and slide out.
+  // The pop-up's jar: {x, y} its middle, h its height and s its scale now. It pops
+  // in at the screen's center and, at the end, shrinks toward the town square
+  // (into the square's jar when that is on screen, else off the nearer edge).
+  function popH() { return Math.min(0.42 * H, 0.6 * W, 1.1 * L.u); }
   function popBox() {
-    var h = L.u * POP_H, y = Math.max(H * 0.05, 12) + h;
-    var inK = reduced ? smooth(popAge / 0.3) : popIn(popAge / 0.45);
-    var out = smooth(1 - st.jarPop / 0.5);
-    return { x: W / 2, y: y - out * (y + h * 0.2), h: h, s: Math.max(0.01, inK) };
+    var h = popH(), x = W / 2, s = reduced ? smooth(popAge / 0.3) : popIn(popAge / 0.45);
+    // its middle at 0.38 H, but higher when it would cover Bella and Bongo (landscape)
+    var y = Math.max(h / 2 + 0.03 * H, Math.min(0.38 * H, L.gy - L.heroH - 0.02 * H - h / 2));
+    var out = smooth(1 - st.jarPop / POP_OUT);
+    if (out > 0) {
+      var jh = L.u * JAR_H, tx = placeX(place('square')) - st.camX, ty = L.gy - jh / 2, ts = jh / h;
+      if (!(tx > jh * 0.4 && tx < W - jh * 0.4)) { tx = clamp(tx, -h * 0.4, W + h * 0.4); ts = 0.3; }
+      x += (tx - x) * out; y += (ty - y) * out; s += (ts - s) * out;
+    }
+    return { x: x, y: y, h: h, s: Math.max(0.01, s) };
   }
   function popIn(p) {        // ease out with a little overshoot
     p = clamp(p, 0, 1);
@@ -259,15 +277,17 @@
     else if (n > 0) {
       if (n > DROP_MAX) { jar = makeJar(total - DROP_MAX); n = DROP_MAX; }
       jar.drop(n);
-      if (GAMES[from]) { st.jarPop = POP_T; popAge = 0; snd('jarPop'); }
+      if (GAMES[from]) { st.jarPop = POP_MIN; popAge = 0; popLast = 0; popEnd = POP_MIN; snd('jarPop'); }
     }
     shown = total;
   }
   function jarUpdate(dt) {
     if (st.jarPop > 0) {
       popAge += dt;
-      st.jarPop = Math.max(0, st.jarPop - dt);
-      if (jar.pending() > 0 && popAge < POP_MAX - 0.5) st.jarPop = Math.max(st.jarPop, 0.6);
+      if (jar.pending() > 0) popLast = popAge;
+      // the end only moves later (while stars drop), never before POP_MIN or past POP_MAX
+      popEnd = Math.max(popEnd, clamp(popLast + POP_SETTLE, POP_MIN, POP_MAX));
+      st.jarPop = Math.max(0, popEnd - popAge);
     }
     popOn = st.jarPop > 0;
     if (!document.hidden && (popOn || squareOnScreen())) jar.step(dt);
@@ -449,7 +469,7 @@
     g.save();
     g.translate(b.x, b.y);
     g.scale(b.s, b.s);
-    Town.drawJar(g, 0, 0, b.h, total, 0, jar.bodies());
+    Town.drawJar(g, 0, b.h / 2, b.h, total, 0, jar.bodies());
     g.restore();
   }
 
@@ -535,6 +555,7 @@
     },
     worldW: function () { return L.ww; },
     enter: function (kind) { walkTo(place(kind)); },
+    pop: function () { sync(); return popOn ? popBox() : null; },
     jar: function () {
       return jar ? { count: jar.count(), steps: jar.steps(), bodies: jar.bodies(), ms: jar.ms() }
         : { count: 0, steps: 0, bodies: [], ms: 0 };

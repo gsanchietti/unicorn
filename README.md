@@ -31,7 +31,7 @@ A gentle browser game for small children. Bella the unicorn and Bongo the teddy 
 - At 10, 25, 50 stars, and every 50 after that: confetti, a rainbow and "Bravissima!".
 - After a while (on the street, at the pond and in the star game) the sky turns to sunset and a cozy night with a smiling moon, then back to day. The music changes from a happy tune to a lullaby.
 - The round button at the top right turns the sound on and off. Sound starts after the first tap.
-- Every star also goes into the jar on the street, which keeps the total from all the games. Back on the street after a game, a small jar pops up at the top and the new stars drop in one by one and pile up. Every 10 small stars melt into one big star at the bottom, so the jar never overflows.
+- Every star also goes into the jar on the street, which keeps the total from all the games. Back on the street after a game, a big jar pops up in the middle of the screen and the new stars drop in one by one and pile up; then it flies back to the town square. Every 10 small stars melt into one big star at the bottom, so the jar never overflows.
 - The house button next to it goes back one step: from the star game, the bakery or the pond to the street, from the street to the start page. Leaving full screen goes back to the start page.
 
 ## Put it on a phone or tablet

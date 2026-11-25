@@ -43,7 +43,7 @@
  *                               with bodies ([{x, y, a, big}] in jar space, from
  *                               Phys.jar, js/physics.js): the cached back of the
  *                               jar (stand, glass), then each body as an
- *                               Art.starSprite (big ones 2.2x), rotated by a and
+ *                               Art.starSprite (big ones 2.2x; sprite radius 1.9x the body), rotated by a and
  *                               clipped to the glass, then the cached glass front
  *                               (outline, highlights, rim, cork); total is unused.
  *                               Jar space x 0..1, y 0..1 is a square of 58 x 58
@@ -1085,7 +1085,7 @@
   // Jar space (js/physics.js: a unit box, y down) on the authored jar: the box's
   // side is JAR_S units, its top left corner at (JAR_X, JAR_Y), so x 0..1 spans the
   // glass a little past its walls and y 0 is the bottom of the cork.
-  var JAR_S = 58, JAR_X = 4, JAR_Y = 16, STAR_K = 1.6;   // STAR_K: star sprite radius / body radius
+  var JAR_S = 58, JAR_X = 4, JAR_Y = 16, STAR_K = 1.9;   // STAR_K: star sprite radius / body radius
   function physR() { return (window.Phys && window.Phys.jar.R) || { small: 0.024, big: 0.0528 }; }
   function drawJar(g, x, y, h, total, jiggle, bodies) {
     var j = jiggle || 0;

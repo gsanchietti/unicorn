@@ -503,6 +503,25 @@ test('stars from a game drop into the jar', () => single(async ({ page }) => {
   await waitFor(page, (n) => window.__bella.street.jar().count === n + 4, 3000, n0);
 }));
 
+each('the after-game jar is big and central, then leaves', async ({ page }, s) => {
+  await playStars(page);
+  await homeWithStars(page, 4);
+  const t0 = Date.now();
+  await hold(page, 700);                    // popped in
+  const b = await ev(page, () => window.__bella.street.pop());
+  assert.ok(b, 'shown');
+  const want = Math.min(0.42 * s.h, 0.6 * s.w);
+  assert.ok(b.h >= 0.8 * want - 1 && b.h <= want + 1, 'height ' + b.h + ' ~ ' + want);
+  assert.ok(Math.abs(b.x - s.w / 2) < 1 && Math.abs(b.s - 1) < 0.05, 'centered, full size: ' + JSON.stringify(b));
+  assert.ok(b.y - b.h / 2 >= 0 && b.y <= 0.38 * s.h + 1, 'on screen, its middle at 0.38 H or higher');
+  // clear of the top-right buttons (the jar is 0.66 h wide)
+  const btn = await ev(page, () => ['home', 'mute'].map((id) => { const r = document.getElementById(id).getBoundingClientRect(); return { l: r.left, b: r.bottom }; }));
+  for (const r of btn) assert.ok(b.x + 0.33 * b.h < r.l || b.y - b.h / 2 > r.b, 'clear of a button: ' + JSON.stringify(r));
+  await waitFor(page, () => !window.__bella.street.pop(), 7000);
+  const shown = (Date.now() - t0) / 1000;
+  assert.ok(shown >= 2.9 && shown <= 6, 'shown ' + shown + ' s');
+});
+
 test('many new stars drop in without overflowing', () => single(async ({ page }) => {
   await playStars(page);
   const b0 = bigOf(await jarOf(page));
