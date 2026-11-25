@@ -584,8 +584,8 @@ each('the give button sits by the friend and is big', async ({ page }, s) => {
   assert.ok(g.r >= 0.08 * o.M, 'big: ' + g.r);
   o.b.filter((q) => /^(cream|top):/.test(q.id)).forEach((q) => assert.ok(g.r > q.r, q.id + ' is smaller'));
   const mid = (r) => [r.x + r.w / 2, r.y + r.h / 2];
-  const df = Math.hypot(g.x - mid(o.f)[0], g.y - mid(o.f)[1]), dc = Math.hypot(g.x - mid(o.c)[0], g.y - mid(o.c)[1]);
-  assert.ok(df < dc, 'nearer the friend (' + df.toFixed(0) + ') than the cake (' + dc.toFixed(0) + ')');
+  assert.ok(g.x >= o.f.x - g.r && g.x <= o.f.x + o.f.w + g.r, 'under the friend: x ' + g.x);
+  assert.ok(g.x > mid(o.c)[0], 'right of the cake center');
   assert.ok(g.x - g.r >= 0 && g.y - g.r >= 0 && g.x + g.r <= s.w && g.y + g.r <= s.h, 'inside the viewport');
   const nx = Math.max(o.c.x, Math.min(g.x, o.c.x + o.c.w)), ny = Math.max(o.c.y, Math.min(g.y, o.c.y + o.c.h));
   assert.ok(Math.hypot(g.x - nx, g.y - ny) >= g.r, 'clear of the cake');

@@ -275,18 +275,36 @@
     // The give button ('serve') sits by the friend, on the counter's edge in front of
     // the stool, clear of the cake (in portrait it is pushed right, to the screen edge).
     // The tool rows go below it.
-    var cakeRight = L.cakeX + 0.19 * L.u;
-    var R = Math.min(M * 0.105, (W - 10 - cakeRight - 4) / 2);
-    R = Math.max(R, M * 0.08);
-    var gx = Math.max(cakeRight + 4 + R, Math.min(L.stoolX, W - R - 6));
-    gx = Math.min(gx, W - R - 6);
-    var gy = Math.min(L.ctY - 0.08 * L.u + R, H - R - 10);
+    var cakeRight = L.cakeX + 0.19 * L.u, A = L.ctY + L.u * 0.05;
+    var one = [creams.concat([null], tops)], two = [creams, tops], R, gx, gy, top, rMax, r1, r2, rows;
+    function tools() {
+      r1 = rowsFit(one, rMax, top); r2 = rowsFit(two, rMax, top);
+      return r1 >= r2 ? rowLayout(one, r1, top) : rowLayout(two, r2, top);
+    }
+    if (H > W) {
+      // Portrait: the give button sits in the open band between the counter's cloth edge
+      // and the first tool row, under the friend, as big as the band allows.
+      R = M * 0.12;
+      top = A + 2 * R + 0.02 * H; rMax = M * 0.09;
+      rows = tools();
+      var rowTop = Infinity;
+      rows.forEach(function (b) { rowTop = Math.min(rowTop, b.y - b.r); });
+      var band = rowTop - A;
+      R = Math.min(M * 0.12, band / 2 - 0.01 * H);
+      gx = clamp(L.stoolX, R + 0.03 * W, W - R - 0.03 * W);
+      gy = A + band / 2;
+      rMax = Math.min(M * 0.09, R * 0.92);
+      if (rMax < r1 || rMax < r2) { top = gy + R + 6; rows = tools(); }
+    } else {
+      // Landscape: by the friend, on the counter's edge in front of the stool; the tools go below it.
+      R = Math.max(Math.min(M * 0.105, (W - 10 - cakeRight - 4) / 2), M * 0.08);
+      gx = Math.min(Math.max(cakeRight + 4 + R, Math.min(L.stoolX, W - R - 6)), W - R - 6);
+      gy = Math.min(L.ctY - 0.08 * L.u + R, H - R - 10);
+      top = Math.max(A, gy + R + 6); rMax = Math.min(M * 0.09, R * 0.92);
+      rows = tools();
+    }
     L.give = { id: 'serve', x: gx, y: gy, r: R };
-    var top = Math.max(L.ctY + L.u * 0.05, gy + R + 6), rMax = Math.min(M * 0.09, R * 0.92);
-    var one = [creams.concat([null], tops)];
-    var two = [creams, tops];
-    var r1 = rowsFit(one, rMax, top), r2 = rowsFit(two, rMax, top);
-    L.deco = (r1 >= r2 ? rowLayout(one, r1, top) : rowLayout(two, r2, top)).concat([L.give]);
+    L.deco = rows.concat([L.give]);
     buildGiveArt();
   }
   function buttons() {
@@ -349,8 +367,9 @@
   function decorated() { return st.creamDabs > 0 || st.toppings.length > 0; }
   function friendRect() {
     if (st.mode === 'off') return null;
-    var w = L.friendH * 0.75, h = L.friendH;
-    return { x: fr.x - w / 2, y: friendBottom() - h, w: w, h: h };
+    var w = L.friendH * 0.75, h = L.friendH, x0 = fr.x - w / 2, cs = base && cakeCv && st.mode === 'decorate' ? cakeScreen() : null;
+    if (cs && x0 < cs.x + cs.w + 2) x0 = Math.min(cs.x + cs.w + 2, fr.x);   // a cake tap always decorates
+    return { x: x0, y: friendBottom() - h, w: fr.x + w / 2 - x0, h: h };
   }
   function wishOn() {
     for (var i = 0; i < st.toppings.length; i++) if (st.toppings[i].k === st.wish) return true;
