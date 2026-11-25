@@ -19,7 +19,7 @@
  *          distinct places (1.2 s, 'scurry') -> seek
  *   seek   every 0.8..1.5 s, when nobody peeks or runs, one unfound hidden friend
  *          starts to peek ('rustle', the place wiggles a little, "Cucù!"): it rises
- *          0.35 of its hiding height. Its peekT counts up; at peekT >= st.wait it
+ *          0.5 of its hiding height. Its peekT counts up; at peekT >= st.wait it
  *          scurries to a free place ('scurry', 'giggle', 0.9 s, drawn over
  *          everything) and stops peeking; st.inRow = 0.
  *          A tap on a place wiggles it ('rustle'). A friend hiding there, peeking or
@@ -45,7 +45,7 @@
  *          Tap target: centered on the hiding friend, radius clamp(0.5 max(w k,
  *          1.6 hide.h k), 0.075 M, half the slot width); a tap anywhere on the
  *          place's box counts too (the nearest center wins).
- *   Bella  min(0.3 u, 0.28 H) tall, by the door on the left, her hooves at the
+ *   Bella  min(0.42 u, 0.27 H) tall, by the door on the left, her hooves at the
  *          front line frontY = H - max(6, 0.03 H), facing right; drawn from the
  *          star game's flying-scale ppu (min(0.42 H, 0.52 W) / Characters.H * DPR):
  *          Characters keeps 2 cached scales.
@@ -78,7 +78,7 @@
   var ROWS2 = [[1, 0, 3, 4], [2, 5, 6, 7]];          // indices into SPOTS: back row, front row
   var ROW1 = [[1, 2, 0, 5, 3, 6, 4, 7]];
   var T = { hide: 1.2, scurry: 0.9, grace: 0.25, pop: 0.35, join: 0.6, party: 3, rise: 0.25 };
-  var WAIT0 = 5, WAIT_MIN = 2.5, WAIT_STEP = 0.5, PEEK_UP = 0.35, OCTO_K = 0.85;
+  var WAIT0 = 5, WAIT_MIN = 2.5, WAIT_STEP = 0.5, PEEK_UP = 0.5, OCTO_K = 0.85;
   var FOOT = 1050;          // rig y of Bella's hooves at rest (Characters.H = 1100)
 
   var W = 0, H = 0, M = 0, DPR = 1, reduced = false;
@@ -128,7 +128,7 @@
       });
     });
     L.frontY = H - Math.max(6, 0.03 * H);
-    L.heroH = Math.min(0.3 * u, 0.28 * H);
+    L.heroH = Math.min(0.42 * u, 0.27 * H);
     L.heroX = Math.max(0.04 * W, 8) + 0.45 * L.heroH;
     var fw = 0.2 * u, x0 = L.heroX + 0.45 * L.heroH + 0.5 * fw;
     L.lineX0 = x0;

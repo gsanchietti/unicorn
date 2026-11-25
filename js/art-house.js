@@ -2,8 +2,7 @@
  * red roof on the street), in the style of the bedroom-wall mural. Classic script:
  * window.House. Needs window.Art (js/art.js) loaded first.
  *
- * PLACEHOLDER drawings: simple round shapes with the ink line and the pencil grain,
- * until the designer paints them. The API, the sizes and the anchors below are what
+ * Round shapes with the ink line and the pencil grain. The API, the sizes and the anchors below are what
  * js/scenes/house.js lays the room out with; a repaint keeps them.
  *
  * Sizes: `u` is the scene's size unit in CSS px, u = min(M, 0.9 H). Everything is
@@ -31,8 +30,9 @@
  *                               hide: where a hiding friend's bottom center sits (x, y in
  *                               CSS px from the spot's bottom center, y < 0 is up) and its
  *                               height h. At hide, front covers the friend fully. A
- *                               peeking friend is raised by 0.35 h: its ears or tail show
- *                               above or beside front.
+ *                               peeking friend is raised by 0.5 h: its ears and part of
+ *                               its head show above front (beside the tall drape, for
+ *                               the curtain).
  *                               Sizes (u): sofa 0.28 x 0.22, curtain 0.22 x 0.5, basket
  *                               0.22 x 0.2, wardrobe 0.22 x 0.44, plant 0.2 x 0.4, table
  *                               0.28 x 0.22, armchair 0.24 x 0.26, toybox 0.24 x 0.28;
@@ -62,7 +62,7 @@
   // [w, h] in u, and hide [x, y, h] in u (y < 0 is up)
   var SIZE = {
     sofa: [0.28, 0.22, [0, 0, 0.18]],
-    curtain: [0.22, 0.5, [0, 0, 0.18]],
+    curtain: [0.22, 0.5, [0.035, 0, 0.17]],
     basket: [0.22, 0.2, [0, -0.004, 0.14]],
     wardrobe: [0.22, 0.44, [0, -0.02, 0.17]],
     plant: [0.2, 0.4, [0, 0, 0.17]],
@@ -127,7 +127,7 @@
   var PAINT = {
     sofa: function (b, f) {
       shadow(b, 0.13);
-      piece(f, rr(-0.12, -0.2, 0.24, 0.13, 0.05), C.plum, C.plumDeep);          // backrest
+      piece(f, rr(-0.12, -0.192, 0.24, 0.13, 0.04), C.plum, C.plumDeep);        // backrest
       piece(f, rr(-0.12, -0.11, 0.24, 0.09, 0.03), C.plum, C.plumDeep);         // seat
       piece(f, rr(-0.1, -0.135, 0.095, 0.05, 0.025), C.plumLight, C.plum);      // cushions
       piece(f, rr(0.005, -0.135, 0.095, 0.05, 0.025), C.plumLight, C.plum);
@@ -137,29 +137,30 @@
       piece(f, rr(0.08, -0.016, 0.03, 0.016, 0.006), C.woodDeep, null);
     },
     curtain: function (b, f) {
-      // the rod and the long curtains (behind); the gathered bottom of the drape (front)
+      // the rod and the far drape (behind); the near drape, tall on the left and swept
+      // low across to the right (front): a friend peeks beside it, over the low sweep
       piece(b, rr(-0.105, -0.49, 0.21, 0.014, 0.007), C.wood, C.woodDeep);
       piece(b, function (g) {
-        g.beginPath(); g.moveTo(-0.1, -0.476); g.lineTo(-0.02, -0.476);
-        g.quadraticCurveTo(-0.03, -0.25, -0.07, -0.12); g.lineTo(-0.1, -0.12); g.closePath();
-      }, C.blue, C.blueDeep);
-      piece(b, function (g) {
-        g.beginPath(); g.moveTo(0.1, -0.476); g.lineTo(0.02, -0.476);
-        g.quadraticCurveTo(0.03, -0.25, 0.07, -0.12); g.lineTo(0.1, -0.12); g.closePath();
+        g.beginPath(); g.moveTo(0.1, -0.476); g.lineTo(0.03, -0.476);
+        g.quadraticCurveTo(0.04, -0.3, 0.075, -0.12); g.lineTo(0.1, -0.12); g.closePath();
       }, C.blue, C.blueDeep);
       piece(f, function (g) {
-        g.beginPath(); g.moveTo(-0.105, 0);
-        g.quadraticCurveTo(-0.11, -0.12, -0.075, -0.2); g.quadraticCurveTo(0, -0.215, 0.075, -0.2);
-        g.quadraticCurveTo(0.11, -0.12, 0.105, 0); g.closePath();
+        g.beginPath(); g.moveTo(-0.105, 0); g.lineTo(-0.1, -0.476); g.lineTo(-0.02, -0.476);
+        g.quadraticCurveTo(-0.025, -0.3, -0.035, -0.215);
+        g.quadraticCurveTo(0.04, -0.175, 0.1, -0.19);
+        g.quadraticCurveTo(0.112, -0.1, 0.105, 0); g.closePath();
       }, C.blue, C.blueDeep, {
         over: function (g) {
           g.strokeStyle = 'rgba(63,127,192,0.6)'; g.lineWidth = 0.006;
           g.beginPath();
-          for (var i = -2; i <= 2; i++) { g.moveTo(i * 0.035, -0.19); g.quadraticCurveTo(i * 0.042, -0.1, i * 0.04, 0); }
+          for (var i = -2; i <= 2; i++) { g.moveTo(-0.06 + i * 0.012, -0.47); g.quadraticCurveTo(-0.06 + i * 0.02, -0.2, i * 0.04, 0); }
           g.stroke();
+          var pts = [];
+          for (var j = 0; j < 9; j++) pts.push([-0.088 + j * 0.022, -0.018]);
+          dots(g, pts, 0.006, C.cloth);
         }
       });
-      piece(f, rr(-0.1, -0.205, 0.2, 0.022, 0.011), C.yellow, C.doorDeep);     // the tie
+      piece(f, rr(-0.108, -0.232, 0.085, 0.022, 0.011), C.yellow, C.doorDeep);  // the tie
     },
     basket: function (b, f) {
       shadow(b, 0.1);
