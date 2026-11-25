@@ -9,11 +9,19 @@
  * for the tests (enters counts enter() calls).
  * st.level = floor(score / 10) + 1; every level the world is 10% quicker (speedK, max 1.8).
  * The mud cloud {x, y, ph, vy} flies straight at a random height; only a touch hits.
+ * Squishy clouds: when Bella's body circle touches a cloud (cooldown 0.6 s per
+ * cloud), the cloud's Phys.spring is kicked and it draws squashed, scale(1 + s,
+ * 1 - s) around its center with s clamped to +-0.25, and Bella hops up: vy =
+ * min(vy, 0) - HOP_V (0.9 M px/s), capped so the apex of the float stays at or
+ * below heroLimits().top; holding keeps working. 'boing'; st.hops counts them.
+ * Wash bubbles push each other apart with Phys.separate(bubbles, 2) every frame.
+ * Hook extras: heroLimits(), body() (Bella's body circle {x, y, r}), cloudAt(x, y)
+ * (a cloud there now), overlap() (the wash bubbles' summed overlap in px).
  */
 (function () {
   'use strict';
 
-  var Art = window.Art, Core = window.Core, Backdrop = window.Backdrop;
+  var Art = window.Art, Core = window.Core, Backdrop = window.Backdrop, Phys = window.Phys;
   var TAU = Math.PI * 2;
 
   // ------------------------------------------------------------ small utils
@@ -31,7 +39,7 @@
   // held: a finger is down now; hasHeld: held at least once this game (hides the tap hint)
   var st = {
     mode: 'off', t: 0, mt: 0,               // mt = time in current mode
-    score: 0, level: 1, best: 0, sinceWash: 0, held: false, hasHeld: false,
+    score: 0, level: 1, best: 0, sinceWash: 0, held: false, hasHeld: false, hops: 0,
     sf: 0.3, scroll: 0,
     stars: [], clouds: [], mud: null, parts: [], bubbles: [], bonus: [],
     splotches: null, dirtyNeed: false, idle: 0, popT: 0,
@@ -146,7 +154,8 @@
     S.cloudW = hf * 0.78;
     S.clouds = [1, 2, 3].map(function (s) { return Art.cloudSprite(S.cloudW, DPR, { seed: s * 3 + 1, face: true }); });
     S.mudCloud = Art.cloudSprite(hf * 1.15, DPR, { seed: 5, mud: true, face: true });
-    S.bubbles = [M * 0.016, M * 0.026, M * 0.04].map(function (r) { return Art.bubbleSprite(r, DPR); });
+    S.bubR = [M * 0.016, M * 0.026, M * 0.04];
+    S.bubbles = S.bubR.map(function (r) { return Art.bubbleSprite(r, DPR); });
     S.spark = [makeSparkle('#fffbe0', '#ffe581'), makeSparkle('#ffffff', '#ffb8d6'), makeSparkle('#fffbff', '#d3bdf2')];
     barMetrics();
     S.ppuFly = heroFlyH() / HC * DPR;
@@ -271,9 +280,23 @@
       q.y -= q.vy * dt;
       q.ph += dt * 4;
       q.x += Math.sin(q.ph) * M * 0.03 * dt;
+      q.r = S.bubR[q.k] * bubbleScale(q.life / q.max);
       b[m2++] = q;
     }
     b.length = m2;
+    if (m2 > 1) Phys.separate(b, 2);
+  }
+  // a wash bubble's drawn size: grows in, then swells as it pops
+  function bubbleScale(f) { return f > 0.85 ? 1 + (f - 0.85) * 2 : 0.6 + f * 0.5; }
+  function overlap(cs) {
+    var sum = 0;
+    for (var i = 0; i < cs.length; i++) {
+      for (var j = i + 1; j < cs.length; j++) {
+        var o = cs[i].r + cs[j].r - Math.hypot(cs[i].x - cs[j].x, cs[i].y - cs[j].y);
+        if (o > 0) sum += o;
+      }
+    }
+    return sum;
   }
   function drawParts(g) {
     var a = st.parts, i, p, f;
@@ -299,7 +322,7 @@
     var b = st.bubbles;
     for (i = 0; i < b.length; i++) {
       p = b[i]; f = p.life / p.max;
-      var s = f > 0.85 ? 1 + (f - 0.85) * 2 : 0.6 + f * 0.5;
+      var s = bubbleScale(f);
       drawSpr(g, S.bubbles[p.k], p.x, p.y, s, s, f > 0.85 ? (1 - f) / 0.15 : 0.9, 0);
     }
   }
@@ -439,7 +462,8 @@
   }
   function addBubble(x, y) {
     if (st.bubbles.length > 60) st.bubbles.shift();
-    st.bubbles.push({ x: x + rnd(-1, 1) * M * 0.02, y: y + rnd(-1, 1) * M * 0.02, vy: rnd(0.05, 0.12) * M, ph: rnd(0, TAU), life: 0, max: rnd(1.0, 1.8) * (reduced ? 0.6 : 1), k: (Math.random() * 3) | 0 });
+    var k = (Math.random() * 3) | 0;
+    st.bubbles.push({ x: x + rnd(-1, 1) * M * 0.02, y: y + rnd(-1, 1) * M * 0.02, vy: rnd(0.05, 0.12) * M, ph: rnd(0, TAU), life: 0, max: rnd(1.0, 1.8) * (reduced ? 0.6 : 1), k: k, r: S.bubR[k] * 0.6 });
   }
 
   function nearPpu(h) {
@@ -477,8 +501,11 @@
     st.stars.push({ x: W + S.starR * 2, y: rnd(l.top, l.bottom), ph: rnd(0, TAU), got: false });
   }
   function spawnCloud() {
-    var l = heroLimits(), spr = pick(S.clouds);
-    st.clouds.push({ x: W + S.cloudW, y: rnd(l.top, l.bottom), spr: spr, sc: rnd(0.85, 1.1), cd: 0, sq: 0, drift: rnd(-0.02, 0.02) * M, ph: rnd(0, TAU) });
+    var l = heroLimits();
+    addCloud(W + S.cloudW, rnd(l.top, l.bottom));
+  }
+  function addCloud(x, y) {
+    st.clouds.push({ x: x, y: y, spr: pick(S.clouds), sc: rnd(0.85, 1.1), cd: 0, jelly: Phys.spring(), drift: rnd(-0.02, 0.02) * M, ph: rnd(0, TAU) });
   }
   function spawnMud() {
     var h = st.hero, l = heroLimits(), y = h.y, n = 0;
@@ -487,6 +514,7 @@
     st.mud = { x: W + S.mudCloud.lw, y: y, ph: 0, vy: 0 };
   }
 
+  var HOP_V = 0.9;          // the cloud hop, in M per second
   function heroBody() {
     var h = st.hero;
     var k = h.h / HC, b = CHR.anchors.body;
@@ -524,6 +552,16 @@
     } else { pose.face = undefined; st.faceV = 0; }
     pose.t = st.t; pose.run = st.runV; pose.wave = wave; pose.happy = happy;
     pose.glow = 0.5 + 0.5 * Math.min(1, f.glow / 0.8);
+  }
+
+  // A small hop up off a cloud. With no finger down she floats back with 0.85 H/s²,
+  // so the hop speed is capped to sqrt(2 g d) for the room d above her: the apex
+  // stays at or below the top limit. Held, she rises anyway and the limit holds her.
+  function hop(h, l) {
+    var room = Math.max(0, h.y - l.top), cap = Math.sqrt(2 * 0.85 * H * room);
+    var v = Math.min(h.vy, 0) - HOP_V * M;
+    h.vy = Math.min(h.vy, Math.max(v, -cap));
+    st.hops++;
   }
 
   function updateFly(dt) {
@@ -575,12 +613,11 @@
       s.x -= spd * 0.85 * dt;
       s.y += Math.sin(st.t * 0.8 + s.ph) * 0.0 + s.drift * dt * 0.2;
       s.cd = Math.max(0, s.cd - dt);
-      s.sq = Math.max(0, s.sq - dt);
+      s.jelly.step(dt);
       if (s.cd <= 0 && Math.hypot(s.x - body.x, s.y - body.y) < body.r + s.spr.hitR * s.sc * 0.85) {
-        s.cd = 1.5; s.sq = 0.45;
-        var dir = h.y < s.y ? -1 : 1;
-        h.vy = dir * 0.55 * H;
-        st.noCtl = 0.3;
+        s.cd = 0.6;
+        s.jelly.kick(reduced ? 2.5 : 4.5);
+        hop(h, l);
         snd('boing');
         happyBlip(0.5, 0.4);
       }
@@ -764,7 +801,7 @@
     }
     for (i = 0; i < st.clouds.length; i++) {
       s = st.clouds[i];
-      var q = s.sq > 0 ? Math.sin(Math.PI * (1 - s.sq / 0.45)) * 0.28 : 0;
+      var q = clamp(s.jelly.x, -0.25, 0.25);
       var bob = reduced ? 0 : Math.sin(st.t * 1.2 + s.ph) * M * 0.008;
       drawSpr(g, s.spr, s.x, s.y + bob, s.sc * (1 + q), s.sc * (1 - q), fade, 0);
     }
@@ -849,6 +886,10 @@
     st: st, pose: pose, enters: 0,
     addPoints: function (n) { addPoints(n); },
     speedK: speedK,
+    heroLimits: function () { return heroLimits(); },
+    body: function () { return heroBody(); },
+    cloudAt: function (x, y) { addCloud(x, y); },
+    overlap: function () { return overlap(st.bubbles); },
     getDirty: function () { return st.splotches ? st.splotches.map(function (s) { return s.amount; }) : []; },
     cleanAll: function () {
       if (!st.splotches) return;

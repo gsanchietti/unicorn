@@ -25,7 +25,8 @@ A gentle browser game for small children. Bella the unicorn and Bongo the teddy 
   - Nothing can be missed: an octopus that stays blue for 20 seconds flips by itself. Every 10 octopuses: confetti, "Bravissima!" and a rain of stars from the nursery.
   - Lily pads and reeds float by, and now and then the lizard sits on a rock. The house button goes back to the street.
 - In the star game, **tap or hold** the screen: Bella flies up. **Let go**: she floats down gently.
-- Touch the **stars** to collect them. Clouds are harmless: Bella just bounces off them.
+- Touch the **stars** to collect them. Clouds are harmless and squishy: they wobble like jelly and Bella hops off them with a boing. On the street, tap a cloud in the sky to squish it.
+- The soap bubbles (when washing, and in the pond) bump into each other softly.
 - After about 15 stars, a muddy cloud splashes them both. **Rub the screen** to wash off the mud. When they are clean you get 5 bonus stars.
 - At the top, every 10 stars turn into one big star.
 - At 10, 25, 50 stars, and every 50 after that: confetti, a rainbow and "Bravissima!".

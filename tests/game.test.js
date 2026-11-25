@@ -599,6 +599,113 @@ test('Matter is loaded from file://', async () => {
   } finally { await g.ctx.close(); }
 });
 
+// ------------------------------------------------- squishy clouds, bumping bubbles
+// Step 5 of the fairy town plan: clouds squash like jelly and bounce Bella into a hop;
+// bubbles push each other apart.
+const starsSt = (page) => ev(page, () => ({ y: window.__bella.stars.st.hero.y, hops: window.__bella.stars.st.hops, held: window.__bella.stars.st.held }));
+// a cloud just in front of Bella's body circle, no stars in the way
+const cloudAtHero = (page) => ev(page, () => {
+  const s = window.__bella.stars, b = s.body();
+  s.st.stars.length = 0;
+  s.cloudAt(b.x + b.r * 0.5, b.y);
+});
+
+test('touching a cloud makes Bella hop', () => single(async ({ page }) => {
+  await playStars(page);
+  await hold(page, 300);
+  const a = await starsSt(page);
+  await cloudAtHero(page);
+  const ys = [];
+  let last = a;
+  for (let i = 0; i < 25; i++) { await hold(page, 80); last = await starsSt(page); ys.push(last.y); }
+  assert.ok(last.hops >= a.hops + 1, 'hops ' + a.hops + ' -> ' + last.hops);
+  const top = Math.min(...ys), iTop = ys.indexOf(top);
+  assert.ok(top < a.y - 5, 'went up: ' + a.y + ' -> ' + top);
+  assert.ok(Math.max(...ys.slice(iTop)) > top + 5, 'came back down from ' + top);
+}));
+
+test('cloud hop stays on screen while held', () => single(async ({ page }) => {
+  await playStars(page);
+  await page.mouse.move(195, 422);
+  await page.mouse.down();
+  await hold(page, 1200);                   // held at the top
+  const lim = await ev(page, () => window.__bella.stars.heroLimits());
+  const h0 = (await starsSt(page)).hops;
+  for (let k = 0; k < 3; k++) {
+    await cloudAtHero(page);
+    for (let i = 0; i < 8; i++) {
+      await hold(page, 50);
+      const r = await starsSt(page);
+      assert.ok(r.y >= lim.top - 1, 'cloud ' + k + ': y ' + r.y + ' >= top ' + lim.top);
+    }
+  }
+  const r = await starsSt(page);
+  assert.ok(r.hops >= h0 + 3, 'three hops: ' + h0 + ' -> ' + r.hops);
+  await ev(page, () => { window.__bella.stars.st.clouds.length = 0; });
+  await hold(page, 1000);
+  const b = await starsSt(page);
+  assert.strictEqual(b.held, true, 'still held');
+  assert.ok(b.y < lim.top + 0.05 * 844, 'holding still lifts her to the top: ' + b.y);
+  await page.mouse.up();
+}));
+
+test('pond bubbles push apart', () => single(async ({ page }) => {
+  await playPond(page);
+  await ev(page, () => { window.__bella.pond.st.spawnT = 1e9; window.__bella.pond.st.octos.length = 0; });
+  for (let i = 0; i < 12; i++) { await ev(page, () => window.__bella.pond.shoot()); await hold(page, 20); }
+  await hold(page, 500);
+  const o = await ev(page, () => window.__bella.pond.overlap());
+  assert.ok(o < 4, 'overlap ' + o.toFixed(2) + ' px');
+}));
+
+test('wash bubbles push apart', () => single(async ({ page }) => {
+  await playStars(page);
+  await ev(page, () => { window.__bella.stars.st.sinceWash = 15; });
+  await waitFor(page, () => !!window.__bella.stars.st.mud);
+  await ev(page, () => {
+    const st = window.__bella.stars.st;
+    const id = setInterval(() => { if (st.mud) st.mud.y = st.hero.y; else clearInterval(id); }, 16);
+  });
+  await waitFor(page, () => window.__bella.stars.st.mode === 'wash', 8000);
+  await hold(page, 300);
+  const t0 = Date.now();
+  await page.mouse.move(100, 400);
+  await page.mouse.down();
+  for (let i = 0; Date.now() - t0 < 1000; i++) await page.mouse.move(100 + 190 * Math.abs(Math.sin(i * 0.3)), 400 + 120 * Math.sin(i * 0.7));
+  await page.mouse.up();
+  await hold(page, 100);
+  const r = await ev(page, () => ({ o: window.__bella.stars.overlap(), n: window.__bella.stars.st.bubbles.length }));
+  assert.ok(r.n >= 10, 'bubbles made: ' + r.n);
+  assert.ok(r.o < r.n * 0.5, 'overlap ' + r.o.toFixed(2) + ' px for ' + r.n + ' bubbles');
+}));
+
+each('tap a street cloud squishes it', async ({ page }, s) => {
+  await toStreet(page);
+  // a point inside a far cloud, in the upper half, clear of the buttons and the places
+  const spot = await waitFor(page, () => {
+    const b = window.__bella.street, gy = innerHeight;
+    const btn = ['home', 'mute'].map((id) => document.getElementById(id).getBoundingClientRect());
+    const cs = window.Backdrop.cloudsOnScreen(b.st.camX * 0.25);
+    for (const c of cs) {
+      for (const [fx, fy] of [[0, 0], [-0.4, 0], [0.4, 0], [0, 0.3], [0, -0.3]]) {
+        const x = c.x + fx * c.r, y = c.y + fy * c.r;
+        if (x < 10 || x > innerWidth - 10 || y < 10 || y > Math.min(innerHeight / 2, gy) - 10) continue;
+        if (btn.some((r) => x > r.left - 8 && x < r.right + 8 && y > r.top - 8 && y < r.bottom + 8)) continue;
+        if (b.places().some((p) => Math.hypot(x - p.sx, y - p.sy) < p.r * 1.4)) continue;
+        return { i: c.i, x, y };
+      }
+    }
+    return null;
+  }, 15000).then((h) => h.jsonValue());
+  const x0 = (await streetSt(page)).x;
+  await page.mouse.click(spot.x, spot.y);
+  await hold(page, 60);
+  const c = await ev(page, (i) => window.Backdrop.cloudsOnScreen(window.__bella.street.st.camX * 0.25).find((q) => q.i === i), spot.i);
+  assert.ok(c && Math.abs(c.s) > 0.01, 'squished: ' + JSON.stringify(c));
+  assert.strictEqual(await scene(page), 'street');
+  assert.ok(Math.abs((await streetSt(page)).x - x0) < 0.2 * s.w, 'a tap is not a walk');
+});
+
 each('world ends stop Bella and the camera', async ({ page }, s) => {
   await toStreet(page);
   for (const [frac, fx] of [[0.93, 0.85], [0.07, 0.15]]) {

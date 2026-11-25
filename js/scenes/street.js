@@ -9,6 +9,8 @@
  *   pond    (octopus sign)         -> a bubble and the bubble pond
  *   house                          -> closed for now: a wiggle, sparkles and a door chime
  * A tap on a place cancels any hold walk; a new hold cancels the walk to a place.
+ * A finger down on a far cloud in the upper half of the sky squishes it (a boing,
+ * Backdrop.squish); a place under the finger wins, and the finger still holds.
  *
  * Registers the 'street' scene with window.Core (home: 'title', day/night cycle
  * on, music: 'street'). enter({from}): from 'stars' Bella lands by the sky gate,
@@ -31,7 +33,8 @@
  * within the screen +-L.u or the pop-up shows, and the page is visible.
  * Uses window.Art, window.Town (js/art-town.js), window.Phys, window.Characters,
  * window.Backdrop; audio only through Core.snd ('clipClop', 'say' 'andiamo',
- * 'star', 'door', 'bubble', 'clink' when a dropped star first lands, 'jarPop').
+ * 'star', 'door', 'bubble', 'clink' when a dropped star first lands, 'jarPop',
+ * 'boing' for a cloud).
  *
  * Debug hook window.__bella.street:
  *   st          {x, camX, target, walking, dir, jarShow, jiggle, jarPop} (world x of
@@ -163,11 +166,27 @@
     holds.forEach(function (h) { if (!h.cancelled) d = h.x < W / 2 ? -1 : 1; });   // the latest finger wins
     return d;
   }
+  // A finger down on a far cloud in the sky (the upper half, above the street)
+  // squishes it with a boing. It is still a hold like any other: walking is unchanged.
+  function cloudTap(x, y) {
+    if (y > Math.min(H / 2, L.gy)) return;
+    var cs = Backdrop.cloudsOnScreen(st.camX * 0.25), best = null, bd = Infinity;
+    for (var k = 0; k < cs.length; k++) {
+      var d = Math.hypot(x - cs[k].x, y - cs[k].y) / cs[k].r;
+      if (d <= 1 && d < bd) { bd = d; best = cs[k]; }
+    }
+    if (!best) return;
+    Backdrop.squish(best.i);
+    snd('boing');
+  }
   function pointer(type, p) {
     if (type === 'down') {
       var i = placeAt(p.x, p.y);
       if (i >= 0) { walkTo(i); holds.set(p.id, { x: p.x, cancelled: true }); }
-      else { st.target = null; holds.set(p.id, { x: p.x, cancelled: false }); }
+      else {
+        cloudTap(p.x, p.y);
+        st.target = null; holds.set(p.id, { x: p.x, cancelled: false });
+      }
     } else if (type === 'move') {
       var h = holds.get(p.id);
       if (h) h.x = p.x;

@@ -548,6 +548,15 @@ test('wash', () => open(390, 844, async (page) => {
   await page.mouse.up();
 }));
 
+// A cloud squashed like jelly as Bella hops off it.
+test('cloud hop', () => open(390, 844, async (page) => {
+  await startFlying(page);
+  await ev(page, () => { window.__bella.setTime('day'); const s = window.__bella.stars, b = s.body(); s.st.stars.length = 0; s.cloudAt(b.x + b.r * 0.5, b.y); });
+  await page.waitForFunction(() => window.__bella.stars.st.hops > 0, { timeout: 4000, polling: 16 });
+  await hold(page, 60);
+  await shot(page, 'fly-cloud-hop');
+}));
+
 test('milestone', () => open(390, 844, async (page) => {
   await startFlying(page);
   await ev(page, () => window.__bella.stars.addPoints(24));
