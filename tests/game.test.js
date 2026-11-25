@@ -2,7 +2,7 @@
 const { test, before, after } = require('node:test');
 const assert = require('node:assert');
 const path = require('path');
-const { startServer, launch, openGame, scene, tapPlay, playStars, playBakery, playPond, hold } = require('./helpers');
+const { startServer, launch, openGame, scene, tapPlay, playStars, playBakery, playPond, playHouse, hold } = require('./helpers');
 
 const SIZES = [{ name: 'portrait', w: 390, h: 844 }, { name: 'landscape', w: 844, h: 390 }];
 let server, browser;
@@ -996,19 +996,6 @@ each('home from the bakery lands at its door', async ({ page }) => {
   assert.ok(Math.abs(s.x - door.x) < 0.05 * s.ww, 'x ' + s.x + ' door ' + door.x);
 });
 
-// The house is the only place still closed: Bella walks there, it wiggles, and she stays on the street.
-each('the house is still closed', async ({ page }) => {
-  await toStreet(page);
-  await ev(page, () => {
-    const b = window.__bella.street, p = b.places().find((q) => q.kind === 'house');
-    b.st.x = p.x - innerWidth * 0.1;
-    b.enter('house');
-  });
-  await waitFor(page, () => window.__bella.street.st.target === null, 10000);
-  await hold(page, 900);
-  assert.strictEqual(await scene(page), 'street');
-});
-
 // ---------------------------------------------------------------- the bubble pond
 const pd = (page) => ev(page, () => {
   const s = window.__bella.pond.st;
@@ -1156,6 +1143,264 @@ test('resize mid-game keeps everything on screen', () => single(async ({ page })
     assert.deepStrictEqual(r.octos.filter(([, y, state]) => state === 'swim' && y < r.nb), [], 'swimming octopuses below the nursery at ' + at);
     assert.ok(r.octos.length > 0 && r.bubbles.length > 0, 'something to check at ' + at + ': ' + JSON.stringify(r));
   }
+}));
+
+// ---------------------------------------------------------------- the house
+// Hide and seek. Review focus of the fairy town step 6 plan: a tap at the very start
+// of a scurry, rapid taps, home mid-round, resize, friend sizes across scenes.
+
+const hs = (page) => ev(page, () => {
+  const s = window.__bella.house.st;
+  return { mode: s.mode, found: s.found, inRow: s.inRow, wait: s.wait, round: s.round, enters: s.enters, scurrying: s.scurrying };
+});
+const spotsOf = (page) => ev(page, () => window.__bella.house.spots());
+const housePlace = (page) => ev(page, () => window.__bella.street.places().find((p) => p.kind === 'house'));
+// a spot where a friend hides now (peeking or not)
+const hiderSpot = async (page, notPeeking) => (await spotsOf(page)).find((q) => q.friend &&
+  (q.state === 'hidden' || (!notPeeking && q.state === 'peek')) && !(notPeeking && q.peek));
+async function findOne(page) {
+  const f0 = (await hs(page)).found;
+  const sp = await hiderSpot(page);
+  assert.ok(sp, 'a friend hides somewhere');
+  await page.mouse.click(sp.x, sp.y);
+  await waitFor(page, (n) => window.__bella.house.st.found === n, 2000, f0 + 1);
+  return sp;
+}
+// the size unit of the bakery, the pond and the house
+const unitOf = (page) => ev(page, () => Math.min(Math.min(innerWidth, innerHeight), 0.9 * innerHeight));
+const near = (a, b) => Math.abs(a - b) < 0.01;
+
+each('the house opens from the street', async ({ page }, s) => {
+  await playHouse(page);
+  assert.strictEqual(await scene(page), 'house');
+  const vis = await ev(page, () => { const s = getComputedStyle(document.getElementById('home')); return s.display !== 'none' && s.visibility !== 'hidden' && +s.opacity > 0; });
+  assert.strictEqual(vis, true, '#home visible');
+  const spots = await spotsOf(page), M = Math.min(s.w, s.h);
+  assert.strictEqual(spots.length, 8);
+  assert.strictEqual(spots.filter((q) => q.friend).length, 5, 'five friends hide');
+  for (const q of spots) {
+    assert.ok(2 * q.r >= 0.14 * M - 0.01, 'spot ' + q.kind + ' is big enough: r ' + q.r);
+    assert.ok(q.x - q.r >= 0 && q.x + q.r <= s.w && q.y - q.r >= 0 && q.y + q.r <= s.h, 'spot on screen: ' + JSON.stringify(q));
+  }
+  await ev(page, () => window.__bella.goHome());
+  await waitFor(page, () => window.__bella.scene() === 'street');
+  const st = await streetSt(page), p = await housePlace(page);
+  assert.ok(Math.abs(st.x - p.x) < 0.05 * st.ww, 'x ' + st.x + ' house ' + p.x);
+});
+
+each('tap a peeking friend finds it and gives a star', async ({ page }) => {
+  await playHouse(page);
+  const sp = await hiderSpot(page);
+  assert.ok(await ev(page, (id) => window.__bella.house.peek(id), sp.id), 'peek() took');
+  assert.strictEqual((await spotsOf(page))[sp.id].peek, true, 'it peeks');
+  const s0 = await starTotal(page), f0 = (await hs(page)).found;
+  await page.mouse.click(sp.x, sp.y);
+  await hold(page, 100);
+  assert.strictEqual((await hs(page)).found, f0 + 1);
+  assert.strictEqual(await starTotal(page), s0 + 1);
+});
+
+each('tap a hidden friend also finds it', async ({ page }) => {
+  await playHouse(page);
+  const sp = await hiderSpot(page, true);
+  assert.ok(sp, 'a friend hides without peeking');
+  const s0 = await starTotal(page), f0 = (await hs(page)).found;
+  await page.mouse.click(sp.x, sp.y);
+  await hold(page, 100);
+  assert.strictEqual((await hs(page)).found, f0 + 1);
+  assert.strictEqual(await starTotal(page), s0 + 1);
+});
+
+each('an empty spot just wiggles', async ({ page }) => {
+  await playHouse(page);
+  const sp = (await spotsOf(page)).find((q) => !q.friend);
+  const s0 = await starTotal(page), f0 = (await hs(page)).found;
+  await page.mouse.click(sp.x, sp.y);
+  const wig = await ev(page, (id) => window.__bella.house.spots()[id].wig, sp.id);
+  assert.ok(wig > 0, 'it wiggles: ' + wig);
+  await hold(page, 300);
+  assert.strictEqual((await hs(page)).found, f0);
+  assert.strictEqual(await starTotal(page), s0);
+});
+
+each('a slow tap lets the friend scurry', async ({ page }) => {
+  await playHouse(page);
+  const sp = await hiderSpot(page);
+  await ev(page, (id) => window.__bella.house.peek(id), sp.id);
+  const w = (await hs(page)).wait, s0 = await starTotal(page);
+  await hold(page, (w + 1.2) * 1000);
+  const now = (await spotsOf(page)).find((q) => q.friend === sp.friend);
+  assert.ok(now && now.id !== sp.id, sp.friend + ' moved from ' + sp.id + ' to ' + (now && now.id));
+  await page.mouse.click(sp.x, sp.y);       // the slow tap: the spot is empty now
+  await hold(page, 100);
+  const h = await hs(page);
+  assert.strictEqual(h.inRow, 0);
+  assert.strictEqual(h.found, 0);
+  assert.strictEqual(await starTotal(page), s0);
+});
+
+each('quick finds shorten the wait, never below 2.5 s', async ({ page }) => {
+  await playHouse(page);
+  assert.strictEqual((await hs(page)).wait, 5);
+  for (let i = 0; i < 4; i++) await findOne(page);
+  let h = await hs(page);
+  assert.strictEqual(h.inRow, 4);
+  assert.strictEqual(h.wait, 3);
+  await ev(page, () => { window.__bella.house.st.inRow = 10; });
+  await findOne(page);
+  h = await hs(page);
+  assert.strictEqual(h.wait, 2.5);
+});
+
+test('finding all five makes a party and a new round', () => single(async ({ page }) => {
+  await playHouse(page);
+  const s0 = await starTotal(page), r0 = (await hs(page)).round;
+  for (let i = 0; i < 5; i++) await findOne(page);
+  assert.strictEqual((await hs(page)).mode, 'party');
+  assert.strictEqual(await starTotal(page), s0 + 7);
+  // the party lasts 3 s, then the friends run off and hide (1.2 s)
+  await waitFor(page, (r) => window.__bella.house.st.mode === 'seek' && window.__bella.house.st.round === r, 5000, r0 + 1);
+  const h = await hs(page);
+  assert.strictEqual(h.wait, 5);
+  assert.strictEqual(h.inRow, 0);
+  assert.strictEqual(h.found, 0);
+  assert.strictEqual((await spotsOf(page)).filter((q) => q.friend).length, 5, 'all five hide again');
+  assert.strictEqual(await starTotal(page), s0 + 7);
+}));
+
+// Review focus 1: the tap lands in the very frame the peeking friend starts to run.
+test('a tap during the scurry start finds once', () => single(async ({ page }) => {
+  await playHouse(page);
+  const sp = await hiderSpot(page);
+  await ev(page, (id) => { const h = window.__bella.house; h.peek(id); h.st.wait = 0.6; }, sp.id);
+  const s0 = await starTotal(page);
+  const r = await ev(page, (sp) => new Promise((done) => {
+    const h = window.__bella.house, cv = document.getElementById('game');
+    const tap = (id) => {
+      const o = { pointerId: id, clientX: sp.x, clientY: sp.y, bubbles: true, pointerType: 'touch', isPrimary: true };
+      cv.dispatchEvent(new PointerEvent('pointerdown', o));
+      cv.dispatchEvent(new PointerEvent('pointerup', o));
+    };
+    let n = 0;
+    (function tick() {
+      if (h.st.scurrying === 1) {       // it has just started to run: tap now and next frame
+        tap(51);
+        requestAnimationFrame(() => { tap(52); requestAnimationFrame(() => done({ ok: true })); });
+        return;
+      }
+      if (++n > 300) return done({ ok: false });
+      requestAnimationFrame(tick);
+    })();
+  }), sp);
+  assert.ok(r.ok, 'the scurry started');
+  await hold(page, 1200);
+  const h = await hs(page);
+  assert.strictEqual(h.found, 1, 'found once');
+  assert.strictEqual(await starTotal(page), s0 + 1, 'one star');
+  assert.strictEqual(h.scurrying, 0, 'not running any more');
+  assert.strictEqual((await spotsOf(page)).filter((q) => q.friend === sp.friend).length, 0, sp.friend + ' hides nowhere: it was found');
+}));
+
+// Review focus 2: every spot tapped fast, again and again.
+each('rapid taps on every spot', async ({ page }) => {
+  await playHouse(page);
+  await ev(page, () => {
+    const st = window.__bella.house.st;
+    window.__maxRun = 0;
+    window.__runSampler = setInterval(() => { window.__maxRun = Math.max(window.__maxRun, st.scurrying); }, 5);
+  });
+  const s0 = await starTotal(page);
+  const spots = await spotsOf(page);
+  for (let pass = 0; pass < 3; pass++) {
+    for (const q of spots) await page.mouse.click(q.x, q.y);
+    const wig = await ev(page, () => window.__bella.house.spots().map((q) => q.wig));
+    assert.ok(wig.every((w) => w > 0), 'every spot wiggles: ' + wig);
+  }
+  const h = await hs(page);
+  const bonus = h.mode === 'party' ? 2 : 0;
+  assert.strictEqual(await starTotal(page) - s0, h.found + bonus, 'one star per friend found (+2 for all five)');
+  await hold(page, 4500);
+  assert.ok(await ev(page, () => window.__maxRun) <= 1, 'never more than one runs');
+  await ev(page, () => clearInterval(window.__runSampler));
+  assert.strictEqual(await starTotal(page) - s0, h.found + bonus, 'nothing more given later');
+});
+
+// Review focus 3: leaving mid-round and coming back.
+each('home mid-round and back starts fresh', async ({ page }) => {
+  await playHouse(page);
+  await findOne(page);
+  const s1 = await starTotal(page);
+  await ev(page, () => window.__bella.goHome());
+  await waitFor(page, () => window.__bella.scene() === 'street');
+  const st = await streetSt(page), p = await housePlace(page);
+  assert.ok(Math.abs(st.x - p.x) < 0.05 * st.ww, 'x ' + st.x + ' house ' + p.x);
+  assert.strictEqual(await starTotal(page), s1);
+  await hold(page, 600);                    // the fade in drops a go()
+  await ev(page, () => window.__bella.street.enter('house'));
+  await waitFor(page, () => window.__bella.scene() === 'house' && window.__bella.house.st.mode === 'seek', 10000);
+  const h = await hs(page);
+  assert.strictEqual(h.found, 0);
+  assert.strictEqual(h.enters, 2);
+  assert.strictEqual(h.wait, 5);
+  assert.strictEqual(h.inRow, 0);
+  assert.strictEqual((await spotsOf(page)).filter((q) => q.friend).length, 5, 'all five hide');
+  assert.strictEqual(await starTotal(page), s1);
+});
+
+// Review focus 4: resize or rotation mid-round.
+test('resize keeps spots and friends', () => single(async ({ page }) => {
+  await playHouse(page);
+  await ev(page, () => { window.__bella.house.st.wait = 1e9; });    // nobody scurries away
+  await findOne(page);
+  const map = (spots) => spots.map((q) => q.friend);
+  const before = map(await spotsOf(page));
+  for (const vp of [LANDSCAPE, PORTRAIT, LANDSCAPE]) {
+    await page.setViewport(vp);
+    await hold(page, 600);
+    const at = vp.width + 'x' + vp.height, spots = await spotsOf(page), M = Math.min(vp.width, vp.height);
+    assert.deepStrictEqual(map(spots), before, 'every friend keeps its spot at ' + at);
+    for (const q of spots) {
+      assert.ok(q.x - q.r >= 0 && q.x + q.r <= vp.width && q.y - q.r >= 0 && q.y + q.r <= vp.height, 'spot on screen at ' + at + ': ' + JSON.stringify(q));
+      assert.ok(2 * q.r >= 0.14 * M - 0.01, 'spot big enough at ' + at);
+    }
+    assert.strictEqual((await hs(page)).found, 1);
+  }
+  // a tap still finds after the resize
+  await findOne(page);
+}));
+
+// Review focus 5: each place shows its own friend size, whatever was visited before.
+test('friend sizes stay right across scenes', () => single(async ({ page }) => {
+  const u = await unitOf(page);
+  await playHouse(page);
+  assert.ok(near(await ev(page, () => window.__bella.house.friendH()), 0.22 * u), 'house friends 0.22 u');
+  assert.ok(near(await ev(page, () => window.__bella.house.octoH()), 0.22 * u), 'house octopus 0.22 u');
+  const back = async () => {
+    await ev(page, () => window.__bella.goHome());
+    await waitFor(page, () => window.__bella.scene() === 'street');
+    await hold(page, 600);
+  };
+  const go = async (kind, ready) => {
+    await ev(page, (kind) => {
+      const b = window.__bella.street, p = b.places().find((q) => q.kind === kind);
+      b.st.x = p.x;
+      b.enter(kind);
+    }, kind);
+    await waitFor(page, ready, 10000);
+  };
+  await back();
+  await go('bakery', () => window.__bella.scene() === 'bakery' && window.__bella.bakery.st.mode === 'pick');
+  assert.ok(near(await ev(page, () => window.__bella.bakery.friendH()), 0.34 * u), 'bakery friends 0.34 u');
+  await back();
+  await go('house', () => window.__bella.scene() === 'house' && window.__bella.house.st.mode === 'seek');
+  await back();
+  await go('pond', () => window.__bella.scene() === 'pond' && window.__bella.pond.st.mode === 'fly');
+  assert.ok(near(await ev(page, () => window.__bella.pond.friendH()), 0.34 * u), 'pond lizard 0.34 u');
+  assert.ok(near(await ev(page, () => window.__bella.pond.octoH()), 0.14 * u), 'pond octopus 0.14 u');
+  await back();
+  await go('house', () => window.__bella.scene() === 'house' && window.__bella.house.st.mode === 'seek');
+  assert.ok(near(await ev(page, () => window.__bella.house.friendH()), 0.22 * u), 'house friends 0.22 u again');
+  assert.ok(near(await ev(page, () => window.__bella.house.octoH()), 0.22 * u), 'house octopus 0.22 u again');
 }));
 
 // ---------------------------------------------------------------- preview next to the live game

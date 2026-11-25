@@ -12,8 +12,8 @@ A gentle browser game for small children. Bella the unicorn and Bongo the teddy 
   - the **sky gate** (the cloud with the ladder and the star sign) opens the star game;
   - the **bakery** (the pink mushroom house with the cake sign) opens: see below;
   - the **pond** (the octopus sign) opens the bubble pond: see below;
-  - the **star jar** on the town square jiggles and shows all the stars collected so far, as stars;
-  - the house is still closed: it just wiggles.
+  - the **orange house** opens for hide and seek: see below;
+  - the **star jar** on the town square jiggles and shows all the stars collected so far, as stars.
 - In the **bakery**, a friend comes in (the husky, then Pagi the dog, the mouse and the lizard) and sits at the counter. A bubble shows the topping they wish for.
   - **Tap a cake** (round, heart or tall). Bongo takes it out of the oven.
   - **Rub the cake** to spread cream. Tap a cream pot to change the color.
@@ -24,6 +24,11 @@ A gentle browser game for small children. Bella the unicorn and Bongo the teddy 
   - Grumpy blue octopuses swim in and pop up out of the water. When a bubble touches one, it flips to its happy red side, giggles ("Preso!") and floats up to the nursery cloud at the top: 1 star each.
   - Nothing can be missed: an octopus that stays blue for 20 seconds flips by itself. Every 10 octopuses: confetti, "Bravissima!" and a rain of stars from the nursery.
   - Lily pads and reeds float by, and now and then the lizard sits on a rock. The house button goes back to the street.
+- In the **house**, five friends (the husky, Pagi, the mouse, the lizard and the red octopus) play hide and seek behind the sofa, the curtains, the basket, the wardrobe, the plant, the table, the armchair and the toy box.
+  - Now and then one friend peeks out: its ears or tail show and its hiding place rustles.
+  - **Tap a hiding place**: it wiggles. If a friend hides there (peeking or not), it pops out giggling and runs to stand next to Bella: 1 star. An empty place just wiggles.
+  - Be quick: a friend who peeks for a few seconds scurries, giggling, to another hiding place, so you can follow it with your eyes and try again. Nothing is lost. Each friend found in a row makes the next one a little quicker.
+  - When all five are found they cheer together: confetti, "Bravissima!" and 2 more stars. Then they run off and hide again. The house button goes back to the street.
 - In the star game, **tap or hold** the screen: Bella flies up. **Let go**: she floats down gently.
 - Touch the **stars** to collect them. Clouds are harmless and squishy: they wobble like jelly and Bella hops off them with a boing. On the street, tap a cloud in the sky to squish it.
 - The soap bubbles (when washing, and in the pond) bump into each other softly.
@@ -33,7 +38,7 @@ A gentle browser game for small children. Bella the unicorn and Bongo the teddy 
 - After a while (on the street, at the pond and in the star game) the sky turns to sunset and a cozy night with a smiling moon, then back to day. The music changes from a happy tune to a lullaby.
 - The round button at the top right turns the sound on and off. Sound starts after the first tap.
 - Every star also goes into the jar on the street, which keeps the total from all the games. Back on the street after a game, a big jar pops up in the middle of the screen and the new stars drop in one by one and pile up; then it flies back to the town square. Every 10 small stars melt into one big star at the bottom, so the jar never overflows.
-- The house button next to it goes back one step: from the star game, the bakery or the pond to the street, from the street to the start page. Leaving full screen goes back to the start page.
+- The house button next to it goes back one step: from the star game, the bakery, the pond or the house to the street, from the street to the start page. Leaving full screen goes back to the start page.
 
 ## Put it on a phone or tablet
 
@@ -98,7 +103,7 @@ Phones keep the game files for offline play (`sw.js`). After changing any file, 
 cd tests && npm install && npm test    # headless Chrome, a few minutes
 ```
 
-`tests/game.test.js` plays the game and checks the scenes, the street, the bakery, the pond, touch, saving, offline play and that the live game and the preview stay separate (it needs a `main` worktree at `.worktrees/main`, or `MAIN_WORKTREE`). `tests/render.test.js` saves screenshots of every look to `tests/out/` and checks the drawing cost per frame.
+`tests/game.test.js` plays the game and checks the scenes, the street, the bakery, the pond, the house, touch, saving, offline play and that the live game and the preview stay separate (it needs a `main` worktree at `.worktrees/main`, or `MAIN_WORKTREE`). `tests/render.test.js` saves screenshots of every look to `tests/out/` and checks the drawing cost per frame.
 
 ## Preview the next version
 
@@ -113,7 +118,8 @@ The new look is developed on branch `town`. `tools/publish-preview.sh <town-work
 - `js/art-town.js`: the street's drawings (houses, the sky gate, the bakery, the pond, trees, the star jar, the signs)
 - `js/art-bakery.js`: the bakery's drawings (the room, counter, oven, cakes, creams, toppings, buttons)
 - `js/art-pond.js`: the pond's drawings (the water, lily pads, reeds, the lizard's rock, the nursery cloud, soap bubbles)
-- `js/friends.js`: the bakery's friends (the husky, Pagi, the mouse and the lizard) and the pond's reversible octopus
+- `js/art-house.js`: the house's drawings (the room, and the eight hiding places: each a back and a front, with the friend between them)
+- `js/friends.js`: the bakery's friends (the husky, Pagi, the mouse and the lizard) and the pond's reversible octopus, who all play hide and seek in the house
 - `js/audio.js`: sounds and music made in code, plus voice cues
 - `js/characters.js`: Bella and Bongo, drawn and animated
 - `js/core.js`: the shared core (screen, touch, buttons, saving, moving between places)
@@ -122,6 +128,7 @@ The new look is developed on branch `town`. `tools/publish-preview.sh <town-work
 - `js/scenes/street.js`: the street, the town's hub
 - `js/scenes/bakery.js`: the bakery
 - `js/scenes/pond.js`: the bubble pond
+- `js/scenes/house.js`: the house, hide and seek
 - `js/scenes/stars.js`: the star game
 - `manifest.webmanifest`, `sw.js`: home-screen install and offline play
 - `assets/icons/`: app and tab icons, drawn by `tools/icons.html` from the game art (open it with `?size=512`; `?pad=0.12` for the maskable icon, `?crop=head` for the tab icon)

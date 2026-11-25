@@ -65,6 +65,8 @@
  *   star row (the stars of this visit, 10 slots, a big star per 10) at the top left
  *   the window (Bakery.windowRect) shows the last 6 saved cakes as thumbnails in one
  *   cached canvas, built on enter, on resize and when a cake is saved
+ * Friends.build(0.34 u) runs in enter() too (a no-op at the cached size): the house
+ * and the pond cache their own friend sizes.
  * Bongo and the friends are drawn at the star game's flying-scale ppu
  * (min(0.42 H, 0.52 W) / Characters.H * DPR): Characters keeps 2 cached scales.
  * Characters.drawBongo(g, pose, ppu): bottom center at the origin, facing right;
@@ -85,6 +87,7 @@
  *               shape:* in pick; cream:*, top:* and serve in decorate
  *   friendRect() {x, y, w, h} of the friend on screen, or null while away (off)
  *   cakeRect()  {x, y, w, h} of the cake on screen (null before a cake is picked)
+ *   friendH()   the friend height Friends has cached now (0.34 u while here)
  */
 (function () {
   'use strict';
@@ -922,6 +925,7 @@
     enter: function () {
       sync();
       st.enters++;
+      Friends.build(L.friendH, DPR);     // another place may have cached its own friend size
       t = 0;
       parts.length = 0; flying.length = 0;
       visit = 0; shown = 0;
@@ -953,6 +957,7 @@
       return buttons().map(function (b) { return { id: b.id, x: b.x, y: b.y, r: b.r }; });
     },
     friendRect: function () { return friendRect(); },
+    friendH: function () { return Friends.built().h; },
     cakeRect: function () {
       var r = cakeScreen();
       return r && { x: r.x, y: r.y, w: r.w, h: r.h };

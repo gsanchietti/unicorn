@@ -107,4 +107,19 @@ async function playPond(page) {
   await wait(() => window.__bella.scene() === 'pond' && window.__bella.pond.st.mode === 'fly');
 }
 
-module.exports = { startServer, launch, openGame, scene, tapPlay, playStars, playBakery, playPond, hold };
+// Start page -> street -> through the house door, until the friends have hidden and
+// the seeking starts (mode 'seek'). Bella is put at the house first, as in playBakery.
+async function playHouse(page) {
+  const wait = (fn) => page.waitForFunction(fn, { timeout: 15000, polling: 50 });
+  await tapPlay(page);
+  await wait(() => window.__bella.scene() === 'street');
+  await hold(page, 600);
+  await page.evaluate(() => {
+    const b = window.__bella.street, p = b.places().find((q) => q.kind === 'house');
+    b.st.x = p.x;
+    b.enter('house');
+  });
+  await wait(() => window.__bella.scene() === 'house' && window.__bella.house.st.mode === 'seek');
+}
+
+module.exports = { startServer, launch, openGame, scene, tapPlay, playStars, playBakery, playPond, playHouse, hold };

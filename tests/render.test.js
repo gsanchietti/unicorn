@@ -5,7 +5,7 @@ const { test, before, after } = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
-const { startServer, launch, openGame, scene, tapPlay, playStars, playBakery, playPond, hold } = require('./helpers');
+const { startServer, launch, openGame, scene, tapPlay, playStars, playBakery, playPond, playHouse, hold } = require('./helpers');
 
 const OUT = process.env.RENDER_OUT || path.join(__dirname, 'out');
 const BUDGET_MS = 8;
@@ -333,6 +333,50 @@ test('pond, phone landscape', () => open(844, 390, async (page) => {
   await ev(page, () => window.__bella.setTime('day'));
   await hold(page, 3000);
   await shot(page, 'pond-landscape');
+}));
+
+// ---------------------------------------------------------------- the house
+// Find the friends hiding now, one tap each (n of them, or all).
+const findFriends = async (page, n) => {
+  const spots = (await ev(page, () => window.__bella.house.spots())).filter((q) => q.friend);
+  for (const q of spots.slice(0, n === undefined ? spots.length : n)) {
+    await page.mouse.click(q.x, q.y);
+    await hold(page, 120);
+  }
+};
+
+test('house: seek, peek and party, within the render budget', () => open(390, 844, async (page) => {
+  await playHouse(page);
+  await ev(page, () => { window.__bella.house.st.wait = 1e9; });    // nobody scurries away
+  await hold(page, 300);
+  await shot(page, 'house-seek');
+  const sp = await ev(page, () => window.__bella.house.spots().find((q) => q.friend));
+  await ev(page, (id) => window.__bella.house.peek(id), sp.id);
+  await hold(page, 600);
+  await shot(page, 'house-peek');
+  await frames(page, 125);
+  const seek = await ev(page, () => window.__bella.frameMs());
+  await findFriends(page);
+  await page.waitForFunction(() => window.__bella.house.st.mode === 'party', { timeout: 4000, polling: 30 });
+  await hold(page, 900);                    // everyone cheers, confetti falling
+  await shot(page, 'house-party');
+  await frames(page, 125);
+  const party = await ev(page, () => window.__bella.frameMs());
+  console.log('house render ms/frame @390x844 DPR2 (seek, party):', seek.toFixed(3), party.toFixed(3));
+  fs.writeFileSync(path.join(OUT, 'house-cost.json'), JSON.stringify({ seek, party }, null, 2) + '\n');
+  assert.ok(seek > 0 && party > 0, 'house: frameMs() measured nothing');
+  assert.ok(seek < BUDGET_MS, 'house render (seek) ' + seek.toFixed(2) + ' ms >= ' + BUDGET_MS + ' ms');
+  assert.ok(party < BUDGET_MS, 'house render (party) ' + party.toFixed(2) + ' ms >= ' + BUDGET_MS + ' ms');
+}));
+
+test('house, phone landscape', () => open(844, 390, async (page) => {
+  await playHouse(page);
+  await ev(page, () => { window.__bella.house.st.wait = 1e9; });
+  await findFriends(page, 2);               // two stand by Bella
+  const sp = await ev(page, () => window.__bella.house.spots().find((q) => q.friend));
+  await ev(page, (id) => window.__bella.house.peek(id), sp.id);
+  await hold(page, 1200);
+  await shot(page, 'house-landscape');
 }));
 
 // Pond sheet: every Pond sprite in day and night (twice its size, and as on a

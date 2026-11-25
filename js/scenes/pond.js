@@ -75,6 +75,8 @@
  *   nursery()   {x, y, w, h}: the nursery's box on screen (top left, size)
  *   overlap()   the bubbles' summed overlap in px (they push apart with
  *               Phys.separate(bubbles, 2) every frame after moving)
+ *   friendH(), octoH()   the friend and octopus sizes Friends has cached now
+ *               (0.34 u and 0.14 u while here: enter() and resize() build them)
  */
 (function () {
   'use strict';
@@ -670,7 +672,7 @@
     layout();
     CHR.prerender(L.ppu);
     Friends.buildOctopus(L.octoH, DPR);
-    Friends.build(0.34 * L.u, DPR);          // the bakery's size: its cache stays right
+    Friends.build(0.34 * L.u, DPR);          // the lizard, built at the bakery's size
     S.starR = clamp(M * 0.05, 16, 34);
     S.star = Art.starSprite(S.starR, DPR, { face: true });
     S.rain = Art.starSprite(clamp(M * 0.02, 7, 14), DPR, { glow: false });
@@ -725,7 +727,13 @@
     home: 'street',
     clock: true,
     music: 'pond',
-    enter: function (args) { sync(); st.enters++; startVisit(args && args.hero); },
+    enter: function (args) {
+      sync();
+      st.enters++;
+      Friends.buildOctopus(L.octoH, DPR);    // another place may have cached its own sizes
+      Friends.build(0.34 * L.u, DPR);
+      startVisit(args && args.hero);
+    },
     exit: function () {
       pointers.clear();
       st.bubbles.length = 0; st.octos.length = 0;
@@ -746,6 +754,8 @@
     shoot: function () { if (st.mode === 'fly') addBubble(); },
     horn: function () { return horn(); },
     nursery: function () { return { x: L.nx - L.nw / 2, y: L.ny - L.nh / 2, w: L.nw, h: L.nh }; },
-    overlap: overlap
+    overlap: overlap,
+    friendH: function () { return Friends.built().h; },
+    octoH: function () { return Friends.built().octoH; }
   };
 })();
