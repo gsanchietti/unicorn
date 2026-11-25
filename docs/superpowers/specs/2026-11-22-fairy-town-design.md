@@ -222,6 +222,7 @@ After step 1, work stops until the owner has tried the preview and approved the 
 3. **The bakery,** with the husky as the first friend, then Pagi, the mouse and the lizard (Fable draws the friends).
 4. **The bubble pond,** with the octopuses.
 5. **Physics extras:** squishy clouds and hop, the Matter.js star jar, bumping bubbles.
+6. **The house: hide and seek** (owner, 2026-11-25). The orange house on the street opens. Inside, the friends (husky, Pagi, mouse, lizard, an octopus) hide behind the sofa, the curtains, a basket, the wardrobe door and other furniture, with a tail or ears peeking out. A tap on a hiding spot makes it wiggle, and the friend pops out giggling: 1 star each. When everyone is found they all cheer, then hide again in new spots. Nothing to read, no wrong taps (an empty spot just wiggles), one finger.
 
 ## Left to the builder
 
