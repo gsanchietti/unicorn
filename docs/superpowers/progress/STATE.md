@@ -1,6 +1,6 @@
 # Fairy town: where the work stands
 
-Updated 2026-11-25.
+Updated 2026-11-25 16:58.
 
 ## Done (branch `town`, preview at https://gsanchietti.github.io/unicorn/next/)
 
@@ -14,22 +14,36 @@ Updated 2026-11-25.
 | 4. The bubble pond | `plans/2026-11-25-fairy-town-step4-pond.md` | Published |
 | 5. Physics extras (Matter.js jar, squishy clouds, bumping bubbles) | `plans/2026-11-25-fairy-town-step5-physics.md` | Published (`bella-next-7`, main `851655b`) |
 
-`cd tests && npm test` passes 140 of 140. The full suite takes over 10 minutes. The live game (`/`, `bella-v4`) is unchanged.
+`cd tests && npm test` passed 140 of 140 at step 5. The full suite takes over 10 minutes. The live game (`/`, `bella-v4`) is unchanged.
 
-## Next
+## In progress: step 6, hide and seek in the house (stopped 2026-11-25 16:58)
 
-1. **The owner tries steps 4 and 5 on `/next/`.** Open points:
+Plan: `plans/2026-11-25-fairy-town-step6-house.md`. Ledger: `progress/2026-11-25-fairy-town-step6-house.md`. Local commits on `town`, **not pushed and not published**.
+
+- **Task 1, the scene** (`37e0f3d`): done. The full suite passed 160 of 160 at that commit.
+- **Task 3, sounds** (`62553e5`, docs `bba8a05`): done. The house song, `rustle`, `scurry`, "Trovato!" and "Cucù!".
+- **Task 2, Fable art** (`bff4e89`): PARTIAL.
+  - Done: the curtain is redrawn, the peek raise goes from 0.35 to 0.5, and Bella is bigger.
+  - Left:
+    - paint the other 7 pieces of furniture (they are still placeholders);
+    - add the house sheet to `render.test.js` and save `house-sheet.jpg`;
+    - stand Bella at a painted door;
+    - check the peek for all 5 friends (the curtain peek is only a sliver).
+- **OPEN:** `holding all the time still catches octopuses [landscape]` failed once in a partial run after `bff4e89`. It passed in the 160/160 run. Run the pond tests first: it may be flaky, or it may come from the pond's new rebuild of `Friends` and the octopus in `enter()`.
+- **Then:**
+  - re-dispatch Fable for the rest of Task 2 (resume from its report `.superpowers/sdd/2026-11-25-fairy-town-step6-house/task-2-report.md`);
+  - run the full suite;
+  - Task 4: publish as `bella-next-8`, after asking the owner.
+
+## Next after step 6
+
+1. **The owner tries steps 4, 5 and 6 on `/next/`.** Open points:
    - the octopus's grumpy face (too cross?);
    - the empty sky above Bella in the portrait pond (about 110 px; it comes from the horn-meets-arcs rule);
    - nothing has been heard by ear yet;
    - the lizard looks frog-like, and Bongo is slightly soft in the bakery;
    - the stars have 5 points, but the mural's stars have 6.
-2. **Step 6, the house: hide and seek.** It is in the spec under "Delivery order" step 6, with the "be quick" rule: a peeking friend scurries to another spot after about 5 s, never less than 2.5 s, and nothing is lost. Write its plan:
-   - the implementer builds the scene with placeholders,
-   - the Fable designer paints the room and the hiding furniture,
-   - the sound designer adds the music and sounds,
-   - the controller publishes.
-3. **Then, when the owner says so, `town` replaces the live game.**
+2. **Then, when the owner says so, `town` replaces the live game.**
    - First the final whole-branch review (deferred from step 1).
    - The `sw.js` `VERSION` and cache prefix go back to the `bella-v` series.
    - `next/` is removed.
