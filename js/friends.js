@@ -34,9 +34,12 @@
  *                               draws it CENTERED at (x, y). pose = {t, side, flip, giggle}:
  *                                 t       time in seconds (a soft breathing squash)
  *                                 side    'blue' | 'red': the side it shows at flip 0
- *                                 flip    0..1 turns it inside out to the other side: a
- *                                         squash flat (0..0.5), then a pop out to the
- *                                         other side (0.5..1, a little overshoot)
+ *                                 flip    0..1 turns it inside out to the other side: the
+ *                                         head sinks and the tentacles fold up around it,
+ *                                         lining out (0..0.5); then the other head pops
+ *                                         out, laughing, with a hop and a big overshoot,
+ *                                         in a ring of red and pink sparkles that reaches
+ *                                         about 1.5 h from the center (0.5..1)
  *                                 giggle  0..1 shakes it, the red side with closed,
  *                                         happy eyes
  *                               The blue side is gently grumpy (droopy half-shut eyes,
@@ -744,96 +747,291 @@
   }
 
   // ========================================================== the octopus
-  // The reversible octopus of the bubble pond (not a bakery friend: not in KINDS).
-  // PLACEHOLDER drawing: the designer replaces buildOctopus / drawOctopus, keeping
-  // the API in the header. Three faces are cached: the blue side (gently grumpy:
-  // droopy half-shut eyes, a small pout), the red side (open eyes, a smile) and the
-  // red side giggling (eyes shut in happy arcs, a wide open smile).
+  // The reversible octopus of the bubble pond (not a bakery friend: not in KINDS),
+  // painted from the toy (assets/photos/ref/octopus.jpg): a big round head on a
+  // skirt of 8 short round tentacles (4 in front, 4 peeking from behind), with the
+  // other side's color showing as a lining under the tentacle tips, as on the toy.
+  // Authored in a 115 x 100 space. Cached per side: the skirt and the head (blue:
+  // gently grumpy, droopy half-shut eyes and a small pout, no teeth; red: the toy's
+  // dot eyes and small smile; red giggling: eyes shut in happy arcs, mouth open),
+  // and one burst of red and pink sparkles for the pop.
+  // The flip really turns it inside out: the head sinks while the tentacles fold
+  // UP around it, showing their lining (0..0.5); then the new head pops out of that
+  // cup, laughing, with a big overshoot and a hop, and the tentacles fall back down
+  // in the new color (0.5..1).
   var oc = null;
-  var OCTO = { blue: '#6f9fe0', blueDeep: '#3c6db8', red: '#ea5f6f', redDeep: '#c23e54', cheek: 'rgba(255,170,190,0.7)' };
+  var OW = 115, OH = 100, OPAD = 6;        // the authoring box and the sprite margin (units)
+  var OSK = 68, OHD = 73;                  // the y the skirt hinges on, and the head's bottom
+  var OCTO = {
+    blue: '#5b8ee6', blueDeep: '#2f57ad', blueLid: '#4576d3',
+    red: '#e2473f', redDeep: '#a82a2c',
+    cheek: 'rgba(255,176,180,0.8)', mouth: '#7a1f2e', tongue: '#ff8fa0',
+    burst: ['#e2473f', '#ff9db8', '#ffd3de', '#ff7f96', '#fff3c9']
+  };
 
   function buildOctopus(h, dpr) {
-    var w = h * 1.15, pad = Math.max(2, h * 0.04);
-    function face(body, deep, mood) {
-      var c = Art.makeCanvas((w + 2 * pad) * dpr, (h + 2 * pad) * dpr), g = c.getContext('2d');
-      c.lw = w + 2 * pad; c.lh = h + 2 * pad;
-      g.scale(dpr, dpr); g.translate(pad, pad);
-      var lw = Math.max(1.4, h * 0.035), cx = w / 2;
-      function shape() {
-        g.beginPath();
-        g.moveTo(w * 0.1, h * 0.62);
-        g.bezierCurveTo(w * 0.06, h * 0.05, w * 0.94, h * 0.05, w * 0.9, h * 0.62);
-        // five round tentacle tips along the bottom
-        var n = 5, x0 = w * 0.9, x1 = w * 0.1;
-        for (var i = 0; i < n; i++) {
-          var a = x0 + (x1 - x0) * i / n, b = x0 + (x1 - x0) * (i + 1) / n;
-          g.bezierCurveTo(a, h * 0.98, b, h * 0.98, b, h * 0.62 + (i < n - 1 ? h * 0.06 : 0));
-        }
-        g.closePath();
-      }
-      shape(); g.fillStyle = body; g.fill();
-      Art.pencil(c, deep, mood === 'grumpy' ? 31 : 32, 0.8);
-      g.fillStyle = 'rgba(255,255,255,0.35)';
-      g.beginPath(); g.ellipse(w * 0.36, h * 0.25, w * 0.1, h * 0.07, -0.5, 0, TAU); g.fill();
-      shape(); Art.ink(g, lw); g.stroke();
-      var ey = h * 0.42, ex = w * 0.17, er = h * 0.085;
-      g.fillStyle = Art.PAL.ink;
-      if (mood === 'grumpy') {
-        // droopy, half-shut eyes and a small soft pout: grumpy, never scary
-        [-1, 1].forEach(function (sd) {
-          g.beginPath(); g.arc(cx + sd * ex, ey, er, 0, Math.PI); g.closePath(); g.fill();
-          Art.ink(g, lw * 0.8);
-          g.beginPath(); g.moveTo(cx + sd * ex - er * 1.2, ey - er * 0.1 + sd * er * 0.15 * -1); g.lineTo(cx + sd * ex + er * 1.2, ey - er * 0.1 + sd * er * 0.15); g.stroke();
+    var k = h / OH, lw = (OW + 2 * OPAD) * k, lh = (OH + 2 * OPAD) * k;
+    var cx = OW / 2;
+    var IW = Math.max(3.2, 1.5 / k), ID = Math.max(2.5, 1.2 / k);     // ink: silhouette, face
+    function sheet() {
+      var c = Art.makeCanvas(lw * dpr, lh * dpr), g = c.getContext('2d');
+      c.lw = lw; c.lh = lh;
+      g.scale(dpr * k, dpr * k); g.translate(OPAD, OPAD);
+      return c;
+    }
+    // One painted part on its own layer (fill, shading, pencil grain, then ink),
+    // so the grain never dulls the ink of the parts under it.
+    function part(dst, path, fill, deep, seed, o) {
+      o = o || {};
+      var c = sheet(), g = c.getContext('2d');
+      path(g); g.fillStyle = fill; g.fill();
+      if (o.inside) { g.save(); g.clip(); o.inside(g); g.restore(); }
+      Art.pencil(c, deep, seed, o.grain === undefined ? 0.75 : o.grain);
+      if (o.ink !== 0) { path(g); Art.ink(g, o.ink || IW); g.stroke(); }
+      if (o.over) o.over(g);
+      var d = dst.getContext('2d');
+      d.save(); d.setTransform(1, 0, 0, 1, 0, 0); d.drawImage(c, 0, 0); d.restore();
+    }
+    function ell(x, y, rx, ry, rot) {
+      return function (g) { g.beginPath(); g.ellipse(x, y, rx, ry, rot || 0, 0, TAU); };
+    }
+    function glow(g, x, y, r, a) {
+      var gr = g.createRadialGradient(x, y, 0, x, y, r);
+      gr.addColorStop(0, 'rgba(255,255,255,' + a + ')'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = gr; g.fillRect(x - r, y - r, 2 * r, 2 * r);
+    }
+    function shade(g, deep, y0, y1, a) {
+      var gr = g.createLinearGradient(0, y0, 0, y1);
+      gr.addColorStop(0, hexA(deep, 0)); gr.addColorStop(1, hexA(deep, a));
+      g.fillStyle = gr; g.fillRect(-OPAD, y0, OW + 2 * OPAD, y1 - y0 + OPAD);
+    }
+    function hexA(hex, a) {
+      var n = parseInt(hex.slice(1), 16);
+      return 'rgba(' + (n >> 16) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')';
+    }
+
+    // ---- the skirt: 4 tentacles peeking from behind, then 4 plump ones in front
+    var BACK = [[9.5, 70, 10, 9.5, 0.5], [105.5, 70, 10, 9.5, -0.5], [34.5, 83.5, 9.5, 9.5, 0], [80.5, 83.5, 9.5, 9.5, 0]];
+    var FRONT = [[21.5, 79.5, 13.5, 13, 0.22], [93.5, 79.5, 13.5, 13, -0.22], [45.5, 81.5, 13.5, 13, 0.06], [69.5, 81.5, 13.5, 13, -0.06]];
+    function skirt(body, deep, lining, liningDeep, seed) {
+      var c = sheet();
+      function row(list, dark, s0) {
+        // the lining of the other side shows under each tip
+        list.forEach(function (b, i) {
+          part(c, ell(b[0] + b[4] * 5, b[1] + 4.4, b[2] * 0.96, b[3] * 0.96, b[4]), lining, liningDeep, s0 + i, { ink: IW * 0.8, grain: 0.5 });
         });
-        Art.ink(g, lw * 0.9);
-        g.beginPath(); g.arc(cx, h * 0.64, h * 0.07, 1.15 * Math.PI, 1.85 * Math.PI); g.stroke();
-      } else {
-        g.fillStyle = OCTO.cheek;
-        g.beginPath(); g.ellipse(cx - w * 0.29, h * 0.55, h * 0.07, h * 0.045, 0, 0, TAU); g.fill();
-        g.beginPath(); g.ellipse(cx + w * 0.29, h * 0.55, h * 0.07, h * 0.045, 0, 0, TAU); g.fill();
-        if (mood === 'giggle') {
-          Art.ink(g, lw);
-          [-1, 1].forEach(function (sd) { g.beginPath(); g.arc(cx + sd * ex, ey + er * 0.4, er * 0.9, 1.15 * Math.PI, 1.85 * Math.PI); g.stroke(); });
-          g.beginPath(); g.arc(cx, h * 0.55, h * 0.1, 0, Math.PI); g.closePath();
-          g.fillStyle = '#7a2438'; g.fill(); g.stroke();
-        } else {
-          [-1, 1].forEach(function (sd) {
-            g.fillStyle = Art.PAL.ink; g.beginPath(); g.arc(cx + sd * ex, ey, er, 0, TAU); g.fill();
-            g.fillStyle = '#ffffff'; g.beginPath(); g.arc(cx + sd * ex - er * 0.3, ey - er * 0.35, er * 0.35, 0, TAU); g.fill();
+        list.forEach(function (b, i) {
+          part(c, ell(b[0], b[1], b[2], b[3], b[4]), body, deep, s0 + 4 + i, {
+            ink: IW * 0.85,
+            inside: function (g) {
+              if (dark) { g.fillStyle = hexA(deep, 0.4); g.fillRect(-OPAD, 0, OW + 2 * OPAD, OH + OPAD); }
+              else { shade(g, deep, b[1] - 2, b[1] + b[3], 0.3); glow(g, b[0] - b[2] * 0.3, b[1] - b[3] * 0.25, b[2] * 0.7, 0.3); }
+            }
           });
-          Art.ink(g, lw);
-          g.beginPath(); g.arc(cx, h * 0.55, h * 0.08, 0.15 * Math.PI, 0.85 * Math.PI); g.stroke();
+        });
+      }
+      row(BACK, true, seed);
+      row(FRONT, false, seed + 8);
+      // where the tentacles join, under the head
+      part(c, ell(cx, 67, 40, 11), body, deep, seed + 17, {
+        ink: 0, inside: function (g) { g.fillStyle = hexA(deep, 0.35); g.fillRect(-OPAD, 0, OW + 2 * OPAD, OH); }
+      });
+      return c;
+    }
+
+    // ---- the head and its three faces
+    function headPath(g) {
+      g.beginPath();
+      g.moveTo(17.5, 44);
+      g.bezierCurveTo(15.5, 14, 37, 3.5, cx, 3.5);
+      g.bezierCurveTo(78, 3.5, 99.5, 14, 97.5, 44);
+      g.bezierCurveTo(96.5, 63, 81, OHD, cx, OHD);
+      g.bezierCurveTo(34, OHD, 18.5, 63, 17.5, 44);
+      g.closePath();
+    }
+    function head(body, deep, seed, mood) {
+      var c = sheet();
+      part(c, headPath, body, deep, seed, {
+        inside: function (g) {
+          shade(g, deep, 40, 76, 0.38);
+          glow(g, 40, 22, 30, 0.42);
+          g.fillStyle = 'rgba(255,255,255,0.3)';
+          g.beginPath(); g.ellipse(36, 17, 9.5, 5.2, -0.55, 0, TAU); g.fill();
         }
+      });
+      var g = c.getContext('2d'), ex = 18.5, INK = Art.PAL.ink;
+      function cheeks(rx, ry) {
+        g.fillStyle = OCTO.cheek;
+        g.beginPath(); g.ellipse(cx - 30, 56.5, rx, ry, 0, 0, TAU); g.ellipse(cx + 30, 56.5, rx, ry, 0, 0, TAU); g.fill();
+      }
+      if (mood === 'grumpy') {
+        // puffed, sulky cheeks
+        g.fillStyle = hexA(OCTO.blueDeep, 0.28);
+        g.beginPath(); g.ellipse(cx - 30, 58, 7, 4.6, 0, 0, TAU); g.ellipse(cx + 30, 58, 7, 4.6, 0, 0, TAU); g.fill();
+        [-1, 1].forEach(function (sd) {
+          var x = cx + sd * ex, y = 47.5;
+          // the eye, with a heavy lid over its top half: droopy, sleepy-grumpy
+          g.fillStyle = INK; g.beginPath(); g.ellipse(x, y, 6.2, 6.8, 0, 0, TAU); g.fill();
+          g.save();
+          g.beginPath(); g.ellipse(x, y, 7.4, 8, 0, 0, TAU); g.clip();
+          g.fillStyle = OCTO.blueLid;
+          g.beginPath();
+          g.moveTo(x - sd * 9, y - 10); g.lineTo(x + sd * 9, y - 10);
+          g.lineTo(x + sd * 9, y - 0.3); g.lineTo(x - sd * 9, y + 0.7);
+          g.closePath(); g.fill();
+          g.restore();
+          g.fillStyle = '#ffffff'; g.beginPath(); g.arc(x + 1.8, y + 2.6, 1.5, 0, TAU); g.fill();
+          Art.ink(g, ID);
+          g.beginPath(); g.moveTo(x - sd * 8.6, y + 0.8); g.lineTo(x + sd * 8.8, y - 0.4); g.stroke();
+          // a soft bag under the eye
+          Art.ink(g, ID * 0.5); g.globalAlpha = 0.45;
+          g.beginPath(); g.moveTo(x - 4.6, y + 9.4); g.quadraticCurveTo(x, y + 11, x + 4.6, y + 9.4); g.stroke();
+          g.globalAlpha = 1;
+        });
+        // a small frown and a pouty lower lip
+        Art.ink(g, ID);
+        g.beginPath(); g.moveTo(cx - 7.6, 62.5); g.quadraticCurveTo(cx, 54, cx + 7.6, 62.5); g.stroke();
+        Art.ink(g, ID * 0.7);
+        g.beginPath(); g.moveTo(cx - 3, 65); g.quadraticCurveTo(cx, 66.8, cx + 3, 65); g.stroke();
+      } else if (mood === 'giggle') {
+        cheeks(7.6, 4.8);
+        Art.ink(g, ID * 1.1);
+        [-1, 1].forEach(function (sd) {
+          var x = cx + sd * ex;
+          g.beginPath(); g.moveTo(x - 6.8, 49.5); g.quadraticCurveTo(x, 38.5, x + 6.8, 49.5); g.stroke();
+        });
+        var mouth = function () {
+          g.beginPath(); g.moveTo(cx - 11, 52.5);
+          g.bezierCurveTo(cx - 9.5, 68.5, cx + 9.5, 68.5, cx + 11, 52.5);
+          g.quadraticCurveTo(cx, 55.5, cx - 11, 52.5); g.closePath();
+        };
+        mouth(); g.fillStyle = OCTO.mouth; g.fill();
+        g.save(); g.clip();
+        g.fillStyle = OCTO.tongue; g.beginPath(); g.ellipse(cx, 65.5, 6.2, 4.2, 0, 0, TAU); g.fill();
+        g.restore();
+        mouth(); Art.ink(g, ID); g.stroke();
+      } else {
+        cheeks(6.6, 4.1);
+        [-1, 1].forEach(function (sd) {
+          var x = cx + sd * ex, y = 47;
+          g.fillStyle = INK; g.beginPath(); g.ellipse(x, y, 5.8, 6.8, 0, 0, TAU); g.fill();
+          g.fillStyle = '#ffffff';
+          g.beginPath(); g.arc(x + 1.7, y - 2.5, 2.1, 0, TAU); g.fill();
+          g.beginPath(); g.arc(x - 1.9, y + 2.4, 0.95, 0, TAU); g.fill();
+        });
+        Art.ink(g, ID);
+        g.beginPath(); g.moveTo(cx - 6.6, 53); g.quadraticCurveTo(cx, 61.5, cx + 6.6, 53); g.stroke();
       }
       return c;
     }
+
+    // ---- the pop: a ring of red and pink sparkles and dots
+    function burst() {
+      var s = 3.4 * h, c = Art.makeCanvas(s * dpr, s * dpr), g = c.getContext('2d');
+      c.lw = s; c.lh = s;
+      g.scale(dpr, dpr); g.translate(s / 2, s / 2);
+      var rand = Art.rng(77), n = 12, i;
+      for (i = 0; i < n; i++) {
+        var a = i / n * TAU + (rand() - 0.5) * 0.25, r = h * (0.98 + (i % 2) * 0.3 + rand() * 0.1);
+        var x = Math.cos(a) * r, y = Math.sin(a) * r, q = h * (i % 2 ? 0.1 : 0.15);
+        g.fillStyle = OCTO.burst[i % OCTO.burst.length];
+        g.beginPath();
+        if (i % 3 === 2) g.arc(x, y, q * 0.55, 0, TAU);
+        else {
+          // a chubby 4-point sparkle
+          g.save(); g.translate(x, y); g.rotate(a + 0.4);
+          g.moveTo(0, -q);
+          g.quadraticCurveTo(q * 0.22, -q * 0.22, q, 0); g.quadraticCurveTo(q * 0.22, q * 0.22, 0, q);
+          g.quadraticCurveTo(-q * 0.22, q * 0.22, -q, 0); g.quadraticCurveTo(-q * 0.22, -q * 0.22, 0, -q);
+          g.restore();
+        }
+        g.fill();
+        Art.ink(g, Math.max(1, h * 0.016)); g.stroke();
+      }
+      return c;
+    }
+
     oc = {
-      h: h,
-      blue: face(OCTO.blue, OCTO.blueDeep, 'grumpy'),
-      red: face(OCTO.red, OCTO.redDeep, 'happy'),
-      giggle: face(OCTO.red, OCTO.redDeep, 'giggle')
+      h: h, k: k,
+      skirt: {
+        blue: skirt(OCTO.blue, OCTO.blueDeep, OCTO.red, OCTO.redDeep, 30),
+        red: skirt(OCTO.red, OCTO.redDeep, OCTO.blue, OCTO.blueDeep, 50)
+      },
+      head: {
+        blue: head(OCTO.blue, OCTO.blueDeep, 31, 'grumpy'),
+        red: head(OCTO.red, OCTO.redDeep, 32, 'happy'),
+        giggle: head(OCTO.red, OCTO.redDeep, 32, 'giggle')
+      },
+      burst: burst()
     };
   }
 
-  function octBack(p) { p = Math.min(1, Math.max(0, p)) - 1; return 1 + p * p * (2.6 * p + 1.6); }
+  // A damped spring from 0 to 1 (p 0..1): it overshoots, then settles.
+  function octSpring(p, damp, freq) { return 1 - Math.exp(-damp * p) * Math.cos(freq * p); }
   // pose = {t, side, flip, giggle}: see the header.
   function drawOctopus(g, x, y, pose) {
     if (!oc) return;
-    var t = pose.t || 0, f = pose.flip || 0, gig = pose.giggle || 0;
+    var t = pose.t || 0, f = pose.flip || 0, gig = pose.giggle || 0, h = oc.h;
     var side = pose.side === 'red' ? 'red' : 'blue', other = side === 'red' ? 'blue' : 'red';
+    f = f < 0 ? 0 : f > 1 ? 1 : f;
     var show = f < 0.5 ? side : other;
-    var sx = 1 + 0.03 * Math.sin(t * 2.6), sy = 1 - 0.03 * Math.sin(t * 2.6), rot = 0;
+    var br = Math.sin(t * 2.6);
+    var sx = 1 + 0.03 * br, sy = 1 - 0.03 * br, rot = 0, hop = 0;
+    var hsx = 1, hsy = 1, hy = 0, ssx = 1 + 0.035 * Math.sin(t * 3.4 + 1), ssy = 1, skin = show, burstP = -1;
     if (f > 0 && f < 1) {
-      if (f < 0.5) { var q = f / 0.5; sx *= 1 + 0.45 * q; sy *= 1 - 0.75 * q; }       // squash flat
-      else { var b = octBack((f - 0.5) / 0.5); sx *= 1.45 - 0.45 * b; sy *= 0.25 + 0.75 * b; }   // pop out
+      if (f < 0.5) {
+        // the head sinks and the tentacles fold up around it, lining out
+        var q = f / 0.5, e = q * q * (3 - 2 * q);
+        hsx = 1 + 0.3 * e; hsy = 1 - 0.72 * e;
+        ssy = 1 - 2.5 * e; ssx *= 1 + 0.14 * e;
+        if (ssy < 0) skin = other;
+        sx *= 1 + 0.06 * e; sy *= 1 - 0.1 * e;
+        rot = Math.sin(t * 40) * 0.05 * (1 - e);
+      } else {
+        // the pop: the new head jumps out of the cup and the tentacles fall back
+        var p = (f - 0.5) / 0.5, b = octSpring(p, 5, 9), sb = octSpring(p, 6, 7);
+        var big = 1 + 0.26 * Math.sin(Math.PI * Math.min(1, p * 1.5)) * (1 - p);
+        hsx = 1.3 - 0.3 * b; hsy = 0.28 + 0.72 * b;
+        ssy = -1.5 + 2.5 * sb; ssx *= 1.14 - 0.14 * sb;
+        sx *= big * (1.06 - 0.06 * b); sy *= big * (0.9 + 0.1 * b);
+        hop = -Math.sin(Math.PI * p) * h * 0.1;
+        burstP = p;
+      }
     }
-    if (gig > 0) { rot = Math.sin(t * 28) * 0.14 * gig; sy *= 1 + 0.05 * gig * Math.sin(t * 19); }
-    var spr = show === 'blue' ? oc.blue : (gig > 0.3 ? oc.giggle : oc.red);
+    var laugh = show === 'red' && (gig > 0.3 || burstP >= 0);
+    if (gig > 0 && show === 'red') {
+      rot += Math.sin(t * 28) * 0.13 * gig;
+      sy *= 1 + 0.05 * gig * Math.sin(t * 19);
+      hy = -Math.abs(Math.sin(t * 14)) * h * 0.035 * gig;
+    } else if (show === 'blue' && f === 0) {
+      rot = Math.sin(t * 1.3) * 0.035;                 // a slow sulky sway
+    }
+    var sk = oc.skirt[skin], hd = show === 'blue' ? oc.head.blue : (laugh ? oc.head.giggle : oc.head.red);
+    var k = oc.k, lw = sk.lw, lh = sk.lh, py = (OSK - OH / 2) * k, ph = (OHD - OH / 2) * k;
     g.save();
-    g.translate(x, y);
+    g.translate(x, y + hop);
+    if (burstP >= 0) {
+      var bs = 0.42 + 0.6 * (1 - (1 - burstP) * (1 - burstP)), bw = oc.burst.lw * bs;
+      g.globalAlpha = burstP < 0.12 ? burstP / 0.12 : Math.min(1, (1 - burstP) * 1.8);
+      g.rotate(burstP * 0.5);
+      g.drawImage(oc.burst, -bw / 2, -bw / 2, bw, bw);
+      g.rotate(-burstP * 0.5);
+      g.globalAlpha = 1;
+    }
     if (rot) g.rotate(rot);
     g.scale(sx, sy);
-    g.drawImage(spr, -spr.lw / 2, -spr.lh / 2, spr.lw, spr.lh);
+    if (ssy >= 0) {
+      g.save(); g.translate(0, py); g.scale(ssx, ssy < 0.04 ? 0.04 : ssy);
+      g.drawImage(sk, -lw / 2, -lh / 2 - py, lw, lh);
+      g.restore();
+    }
+    g.save(); g.translate(0, ph + hy); g.scale(hsx, hsy);
+    g.drawImage(hd, -lw / 2, -lh / 2 - ph, lw, lh);
+    g.restore();
+    if (ssy < 0) {
+      g.translate(0, py); g.scale(ssx, ssy > -0.04 ? -0.04 : ssy);
+      g.drawImage(sk, -lw / 2, -lh / 2 - py, lw, lh);
+    }
     g.restore();
   }
 

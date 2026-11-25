@@ -309,6 +309,153 @@ test('pond, phone landscape', () => open(844, 390, async (page) => {
   await shot(page, 'pond-landscape');
 }));
 
+// Pond sheet: every Pond sprite in day and night (twice its size, and as on a
+// phone), the water tile three times side by side (the joins), the nursery and
+// bubbles at 4 sizes, on the wall color and on the night color.
+test('pond sheet', () => open(390, 844, async (page) => {
+  const buildMs = await ev(page, () => {
+    const t0 = performance.now();
+    window.Pond.build(390, 2);
+    window.Pond.bubble(20); window.Pond.bubble(41);
+    return performance.now() - t0;
+  });
+  console.log('Pond.build(390, 2) + 2 bubbles ms:', buildMs.toFixed(0));
+  const url = await ev(page, () => {
+    const P = window.Pond, U = 300, dpr = 2, CW = 1700, CH = 1420;
+    P.build(U, dpr);
+    const c = document.createElement('canvas');
+    c.width = CW * dpr; c.height = CH * dpr;
+    const g = c.getContext('2d');
+    g.scale(dpr, dpr);
+    g.fillStyle = '#f7f1e6'; g.fillRect(0, 0, CW, CH);
+    g.fillStyle = '#2f427f'; g.fillRect(0, 440, CW, 360);
+    const put = (s, x, y, k) => g.drawImage(s.c, x - s.w * (k || 1) / 2, y - s.h * (k || 1), s.w * (k || 1), s.h * (k || 1));
+    const kinds = ['lily', 'lilyFlower', 'reeds', 'rock'];
+    // the pieces, twice their size: day, then night
+    [false, true].forEach((night, r) => {
+      let x = 30;
+      kinds.forEach((k) => { const s = P.sprite(k, night); put(s, x + s.w, 300 + r * 400, 2); x += s.w * 2 + 40; });
+      // the nursery, as built
+      const n = P.nursery();
+      g.drawImage(n.c, 960, 40 + r * 420, n.w * 1.4, n.h * 1.4);
+      // bubbles at 4 sizes (the scene uses 0.05 u and 0.75 x the octopus)
+      let bx = 1300;
+      [8, 15, 32, 60].forEach((rad) => { const b = P.bubble(rad); g.drawImage(b.c, bx, 320 + r * 400 - b.c.lw, b.c.lw, b.c.lw); bx += b.c.lw + 12; });
+    });
+    // the water: three tiles side by side, with the pieces on it as the scene puts them
+    const t = P.waterTile();
+    [false, true].forEach((night, r) => {
+      const y = 960 + r * 250, x0 = 30;
+      if (night) { g.fillStyle = '#2f427f'; g.fillRect(0, y - 150, 1000, 150 + t.h); }
+      put(P.sprite('reeds', night), x0 + 220, y + U * 0.06);
+      put(P.sprite('reeds', night), x0 + 700, y + U * 0.06);
+      for (let i = 0; i < 3; i++) g.drawImage(t.c, x0 + i * t.w, y, t.w, t.h);
+      if (night) { g.globalAlpha = 0.45; g.fillStyle = '#1f2c63'; g.fillRect(x0, y, 3 * t.w, t.h); g.globalAlpha = 1; }
+      put(P.sprite('lily', night), x0 + 90, y + U * 0.07);
+      put(P.sprite('lilyFlower', night), x0 + 400, y + U * 0.1);
+      put(P.sprite('rock', night), x0 + 560, y + U * 0.04);
+      put(P.sprite('lily', night), x0 + 800, y + U * 0.12);
+    });
+    // as small as on a phone (u = 390), day and night
+    P.build(390, dpr);
+    [false, true].forEach((night, r) => {
+      const y = 1100 + r * 240, x0 = 1010;
+      const w = P.waterTile();
+      if (night) { g.fillStyle = '#2f427f'; g.fillRect(x0, y - 150, 680, 150); }
+      const n = P.nursery();
+      g.drawImage(n.c, x0 + 20, y - 135, n.w * 0.875, n.h * 0.875);
+      put(P.sprite('reeds', night), x0 + 420, y + 390 * 0.06);
+      g.drawImage(w.c, 0, 0, w.c.width, 80 * dpr, x0, y, w.w, 80);
+      g.drawImage(w.c, 0, 0, 290 * dpr, 80 * dpr, x0 + w.w, y, 290, 80);
+      put(P.sprite('lily', night), x0 + 80, y + 390 * 0.07);
+      put(P.sprite('lilyFlower', night), x0 + 250, y + 390 * 0.1);
+      put(P.sprite('rock', night), x0 + 560, y + 390 * 0.04);
+      [20, 41].forEach((rad, i) => { const b = P.bubble(rad); g.drawImage(b.c, x0 + 290 + i * 50, y - 100 + i * 10, b.c.lw, b.c.lw); });
+    });
+    return c.toDataURL('image/png');
+  });
+  fs.writeFileSync(path.join(OUT, 'pond-sheet.png'), Buffer.from(url.split(',')[1], 'base64'));
+}));
+
+// Octopus sheet: blue idle, the flip at 0, 0.25, 0.5, 0.75 and 1, red idle, red
+// giggling and red inside a bubble, big; then the same at a phone's size (twice
+// enlarged) and as the scene draws them (in the nursery they are half size).
+// Also checks the cost of Friends.octopus.
+test('octopus sheet, and Friends.octopus under 0.3 ms', () => open(390, 844, async (page) => {
+  const cost = await ev(page, () => new Promise((done) => {
+    const F = window.Friends, dpr = 2;
+    F.buildOctopus(0.14 * 390, dpr);
+    const c = document.createElement('canvas');
+    c.width = 400; c.height = 400;
+    const g = c.getContext('2d');
+    const pose = { t: 0, side: 'blue', flip: 0, giggle: 0 };
+    const N = 1000, PER = 10, WARM = 40;
+    let i = -WARM, sum = 0;
+    (function tick() {
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      g.clearRect(0, 0, 400, 400);
+      g.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const t0 = performance.now();
+      for (let k = 0; k < PER; k++, i++) {
+        const m = Math.floor((i + 100) / 20) % 4;      // idle blue, flipping, giggling red, idle red
+        pose.t = 1 + i / 60;
+        pose.side = m === 3 ? 'red' : 'blue';
+        pose.flip = m === 1 ? ((i + 100) % 20) / 20 : m === 2 ? 1 : 0;
+        pose.giggle = m === 1 || m === 2 ? 1 : 0;
+        F.octopus(g, 100, 100, pose);
+      }
+      if (i > 0) sum += performance.now() - t0;
+      if (i >= N) done(sum / N); else requestAnimationFrame(tick);
+    })();
+  }));
+  console.log('Friends.octopus ms/call:', cost.toFixed(4));
+  const url = await ev(page, () => {
+    const F = window.Friends, P = window.Pond, dpr = 2, CW = 2360, CH = 830;
+    const c = document.createElement('canvas');
+    c.width = CW * dpr; c.height = CH * dpr;
+    const g = c.getContext('2d');
+    g.scale(dpr, dpr);
+    g.fillStyle = '#f7f1e6'; g.fillRect(0, 0, CW, CH);
+    g.fillStyle = '#45c3c1'; g.fillRect(0, 630, CW / 2, 200);
+    g.fillStyle = '#2f427f'; g.fillRect(CW / 2, 630, CW / 2, 200);
+    const poses = [
+      { t: 0.3, side: 'blue', flip: 0, giggle: 0 },
+      { t: 1.1, side: 'blue', flip: 0, giggle: 1 },
+      { t: 1.1, side: 'blue', flip: 0.25, giggle: 1 },
+      { t: 1.1, side: 'blue', flip: 0.5, giggle: 1 },
+      { t: 1.1, side: 'blue', flip: 0.75, giggle: 1 },
+      { t: 1.1, side: 'blue', flip: 1, giggle: 1 },
+      { t: 0.3, side: 'red', flip: 0, giggle: 0 },
+      { t: 2.03, side: 'red', flip: 0, giggle: 1 },
+      { t: 0.3, side: 'red', flip: 0, giggle: 0, bubble: true }
+    ];
+    const row = (h, y, step, x0, zoom, list) => {
+      F.buildOctopus(h, dpr);
+      P.build(h / 0.14, dpr);
+      (list || poses).forEach((p, i) => {
+        g.save();
+        g.translate(x0 + i * step, y); g.scale(zoom, zoom);
+        F.octopus(g, 0, 0, p);
+        if (p.bubble) { const r = Math.round(0.75 * h), b = P.bubble(r); g.drawImage(b.c, -b.c.lw / 2, -b.c.lw / 2, b.c.lw, b.c.lw); }
+        g.restore();
+      });
+    };
+    row(200, 160, 260, 140, 1);
+    // more steps of the flip, to see the motion
+    row(120, 390, 150, 110, 1, [0.1, 0.2, 0.3, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.8, 0.9, 0.95, 1].map((f) => ({ t: 1.1, side: 'blue', flip: f, giggle: 1 })));
+    row(0.14 * 390, 540, 150, 110, 2);                        // a phone's octopus, enlarged twice
+    row(0.14 * 390, 690, 110, 80, 1);                         // as on a phone, on the water
+    row(0.14 * 390, 780, 110, 80, 0.5);                       // as in the nursery
+    row(0.14 * 390, 690, 110, CW / 2 + 80, 1);                // and at night
+    row(0.14 * 390, 780, 110, CW / 2 + 80, 0.5);
+    return c.toDataURL('image/png');
+  });
+  fs.writeFileSync(path.join(OUT, 'octopus.png'), Buffer.from(url.split(',')[1], 'base64'));
+  fs.writeFileSync(path.join(OUT, 'octopus-cost.json'), JSON.stringify({ octopus: cost }, null, 2) + '\n');
+  assert.ok(cost > 0, 'the draw cost measured nothing');
+  assert.ok(cost < 0.3, 'Friends.octopus ' + cost.toFixed(3) + ' ms >= 0.3 ms');
+}));
+
 for (const s of [
   { name: 'start-phone-portrait', w: 390, h: 844 },
   { name: 'start-phone-landscape', w: 844, h: 390 },
