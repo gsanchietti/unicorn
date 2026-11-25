@@ -45,9 +45,11 @@
  * Layout (CSS px; resize()):
  *   u = min(M, 0.9 H), the size unit: Pond.build(u, DPR)
  *   waterline waterY = 0.78 H
- *   nursery   Pond.nursery() scaled by min(1, 0.7 W / w, 0.16 H / h); at the top
- *             between the star row and #home / #mute when it fits there (y 10),
- *             else centered 90 px down (under the buttons)
+ *   nursery   Pond.nursery() scaled by min(1, 0.7 W / w, 0.16 H / h) (0.8 W / w in
+ *             portrait); at the top between the star row and #home / #mute when it
+ *             fits there (y 10, landscape), else centered under the buttons, its
+ *             center at max(0.2 H, 90 + h / 2) in portrait (close to Bella, no tall
+ *             empty sky) and 90 + h / 2 otherwise. Its octopuses sit at 0.65 size.
  *   Bella     drawn heroH = min(0.3 H, 0.48 W) tall from the star game's flying ppu
  *             (min(0.42 H, 0.52 W) / Characters.H * DPR: Characters keeps 2 scales).
  *             Her center stays between L.top = max(nursery bottom + 0.42 heroH,
@@ -134,11 +136,11 @@
     S.bigR = clamp(M * 0.035, 12, 22);
     S.bigMax = Math.max(1, Math.floor(rowW / (2.2 * S.bigR)));
     // the nursery: between the star row and the buttons when it fits, else under them
-    var n = Pond.nursery(), k = Math.min(1, 0.7 * W / n.w, 0.16 * H / n.h);
+    var tall = H > W, n = Pond.nursery(), k = Math.min(1, (tall ? 0.8 : 0.7) * W / n.w, 0.16 * H / n.h);
     L.nw = n.w * k; L.nh = n.h * k;
     var rowRight = 12 + 10 * S.slotStep + 8, free = W - 170 - rowRight;
     if (free >= L.nw + 16) { L.nx = rowRight + free / 2; L.ny = 10 + L.nh / 2; }
-    else { L.nx = W / 2; L.ny = 90 + L.nh / 2; }
+    else { L.nx = W / 2; L.ny = tall ? Math.max(0.2 * H, 90 + L.nh / 2) : 90 + L.nh / 2; }
     L.nBottom = L.ny + L.nh / 2;
     L.maxArc = Math.max(L.u * 0.1, Math.min(0.45 * H, L.waterY - L.nBottom - L.octoR));
     L.restY = L.waterY - 0.2 * L.octoR;
@@ -492,7 +494,7 @@
   var OPOSE = { t: 0, side: 'blue', flip: 0, giggle: 0 };
   function drawOcto(g, o) {
     OPOSE.t = st.t + o.ph; OPOSE.side = 'blue'; OPOSE.flip = o.flip; OPOSE.giggle = o.giggle * (reduced ? 0.4 : 1);
-    var k = o.state === 'up' ? lerp(1, 0.5, smooth(o.ut / UP_T)) : 1;
+    var k = o.state === 'up' ? lerp(1, RES_K, smooth(o.ut / UP_T)) : 1;
     if (k !== 1) {
       g.save(); g.translate(o.x, o.y); g.scale(k, k);
       Friends.octopus(g, 0, 0, OPOSE);
@@ -541,21 +543,21 @@
       g.drawImage(b.c, q.x - s / 2, q.y - s / 2, s, s);
     }
   }
-  var RES = { t: 0, side: 'red', flip: 0, giggle: 0 };
+  var RES = { t: 0, side: 'red', flip: 0, giggle: 0 }, RES_K = 0.65;
   function drawNursery(g) {
     var n = Pond.nursery(), j = st.jiggle, q = j * Math.sin(j * Math.PI * 5) * (reduced ? 0.03 : 0.08);
     var w = L.nw * (1 + q), h = L.nh * (1 - q);
     g.globalAlpha = 1 - 0.2 * nightK;
     g.drawImage(n.c, L.nx - w / 2, L.ny - h / 2, w, h);
     g.globalAlpha = 1;
-    // the octopuses already in the nursery, at half size, bobbing
+    // the octopuses already in the nursery, at 0.65 size (their faces show), bobbing
     for (var i = 0; i < residents.length; i++) {
       var r = residents[i];
       RES.t = st.t + r.ph;
       RES.giggle = st.party > 0 ? 1 : 0;
       g.save();
       g.translate(L.nx + r.f * L.nw * (1 + q), L.ny - L.nh * 0.1 + Math.sin(st.t * 1.6 + r.ph) * L.nh * 0.04);
-      g.scale(0.5, 0.5);
+      g.scale(RES_K, RES_K);
       Friends.octopus(g, 0, 0, RES);
       g.restore();
     }
