@@ -4,9 +4,9 @@
  * except the optional recorded voice cues assets/sounds/<key>.mp3.
  *
  * Public API: window.Sound = { init, isMuted, setMuted, toggleMute, star,
- *   bubble, boing, splat, fanfare, sparkle, clipClop, door, ding, squish, clink, jarPop, plop,
+ *   bubble, boing, splat, fanfare, sparkle, clipClop, door, ding, squish, clink, jarPop, plop, rustle, scurry,
  *   bell, munch, pop, flip, giggle, say, setMood, getMood, setPlace, suspend, resume }
- *   setPlace('street'|'bakery'|'pond'|'stars') picks the DAY song of a place; setMood('day'|
+ *   setPlace('street'|'bakery'|'pond'|'house'|'stars') picks the DAY song of a place; setMood('day'|
  *   'night') still switches to the shared lullaby. Both crossfade at a bar line.
  *
  * Graph:   sfxBus ----\
@@ -344,6 +344,63 @@
     }
   };
 
+  // ---- HOUSE song: 16-bar tiptoe loop, 104 bpm, C major pentatonic. Sneaky but playful:
+  // short pizzicato steps on the beat, a sparse soft-bell tune with lots of rests (tiptoeing),
+  // a staccato bass, and a tiny "shh" tick. Quiet, so it stays a game of hide and seek.
+  var HOUSE_BPM = 104, HEIGHTH = 60 / HOUSE_BPM / 2;
+  var H_A1 = [_, 7, _, 8, _, 7, _, _], H_A2 = [5, _, 6, _, 7, _, _, _],
+      H_A3 = [_, 8, _, 9, _, 8, _, 7], H_A4 = [6, _, 5, _, 4, _, _, _],
+      H_B1 = [9, _, 8, _, 9, _, 10, _], H_B2 = [9, _, _, 8, _, 7, _, _],
+      H_B3 = [_, 7, _, 6, _, 5, _, 6], H_B4 = [5, _, 4, _, 5, _, _, _];
+  var HOUSE_MELODY = [H_A1, H_A2, H_A3, H_A4,  H_A1, H_A2, H_A3, H_B4,
+                      H_B1, H_B2, H_B3, H_A4,  H_A1, H_A2, H_A3, H_B4];
+  var HOUSE_ROOT = [-12, -17, -15, -19,  -12, -17, -15, -19,  -15, -17, -19, -12,  -12, -17, -15, -12];
+
+  /** One eighth-note slot (0..127) of the 16-bar house loop. */
+  Synth.houseSlot = function (ctx, dest, t, slot, pass) {
+    var bar = Math.floor(slot / 8), step = slot % 8, alt = (pass % 2) === 1;
+    var m = HOUSE_MELODY[bar][step];
+    if (m >= 0) {
+      bell(ctx, dest, t, semis(LADDER_SEMI(m)), (step % 4 === 0) ? 0.36 : 0.28, 0.5);
+      if (alt && bar >= 8 && bar < 12) bell(ctx, dest, t, semis(LADDER_SEMI(m + 2)), 0.09, 0.4);
+    }
+    if (step === 0 || step === 3 || step === 5) {          // tiptoe steps: short plucks, low
+      var root = HOUSE_ROOT[bar] + (step === 3 ? 7 : step === 5 ? 12 : 0);
+      tone(ctx, dest, t, { type: 'triangle', f: semis(root), peak: step === 0 ? 0.38 : 0.2, attack: 0.005, dur: 0.14, lp: 1200 });
+    }
+    if (step === 2 || step === 6) {                         // a tiny two-note pluck, off the beat
+      pluck(ctx, dest, t, semis(LADDER_SEMI(HOUSE_ROOT[bar] > -16 ? 7 : 8)), 0.1);
+    }
+    tick(ctx, dest, t, step % 2 === 1 ? 0.03 : 0.01);
+  };
+
+  /** Soft cloth or leaf rustle, ~0.3 s: band-passed noise with two small swells. */
+  Synth.rustle = function (ctx, dest, t) {
+    var src = ctx.createBufferSource(), bp = ctx.createBiquadFilter(), g = ctx.createGain();
+    src.buffer = noiseBuffer(ctx);
+    bp.type = 'bandpass'; bp.Q.value = 0.9;
+    bp.frequency.setValueAtTime(2200, t);
+    bp.frequency.exponentialRampToValueAtTime(3400, t + 0.28);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(0.12, t + 0.05);
+    g.gain.linearRampToValueAtTime(0.05, t + 0.12);
+    g.gain.linearRampToValueAtTime(0.1, t + 0.18);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
+    src.connect(bp); bp.connect(g); g.connect(dest);
+    src.start(t, Math.random() * 0.5); src.stop(t + 0.32);
+  };
+
+  /** Quick soft tippy-taps, ~0.8 s: eight tiny steps that speed up a little and fade away. */
+  Synth.scurry = function (ctx, dest, t) {
+    var at = 0;
+    for (var i = 0; i < 8; i++) {
+      var f = (i % 2 ? 900 : 720) * (1 + (Math.random() - 0.5) * 0.08), pk = 0.11 * (1 - i * 0.08);
+      tone(ctx, dest, t + at, { f: f, f2: f * 0.7, glide: 0.03, peak: pk, attack: 0.003, dur: 0.045, lp: 2000 });
+      tick(ctx, dest, t + at, 0.05 * (1 - i * 0.08));
+      at += 0.12 - i * 0.008;
+    }
+  };
+
   /** Soft two-tap hoof step, ~0.12 s. k alternates 0/1: second foot a little higher. */
   Synth.clipClop = function (ctx, dest, t, k) {
     var up = ((k | 0) % 2) ? 1.12 : 1, wob = 1 + (Math.random() - 0.5) * 0.06;
@@ -496,7 +553,8 @@
     day:   { slots: 128, step: DEIGHTH, fn: Synth.daySlot, gain: 0.7 },
     street: { slots: 128, step: SEIGHTH, fn: Synth.streetSlot, gain: 0.7 },
     bakery: { slots: 128, step: BEIGHTH, fn: Synth.bakerySlot, gain: 0.7 },
-    pond: { slots: 128, step: PEIGHTH, fn: Synth.pondSlot, gain: 0.7 }
+    pond: { slots: 128, step: PEIGHTH, fn: Synth.pondSlot, gain: 0.7 },
+    house: { slots: 128, step: HEIGHTH, fn: Synth.houseSlot, gain: 0.7 }
   };
   var XFADE = 3;   // seconds, mood crossfade
 
@@ -505,9 +563,9 @@
   var muted = false, suspended = false, musicStarted = false, unlockedSpeech = false;
   var musicTimer = null, nextSlotTime = 0, slotCounter = 0;
   var mood = 'day', place = 'stars', curMood = 'day', pendingMood = null, songBus = {};
-  // curMood / pendingMood hold a SONG key: 'day', 'street', 'bakery', 'pond' or 'night'.
-  function wantSong() { return mood === 'night' ? 'night' : (place === 'street' || place === 'bakery' || place === 'pond' ? place : 'day'); }
-  var lastBubble = 0, lastSquish = 0, lastClink = -1e9, stepFlip = false;
+  // curMood / pendingMood hold a SONG key: 'day', 'street', 'bakery', 'pond', 'house' or 'night'.
+  function wantSong() { return mood === 'night' ? 'night' : (place === 'street' || place === 'bakery' || place === 'pond' || place === 'house' ? place : 'day'); }
+  var lastBubble = 0, lastSquish = 0, lastClink = -1e9, lastRustle = -1e9, stepFlip = false;
 
   try {
     var saved = window.localStorage.getItem(MUTE_KEY);
@@ -531,7 +589,7 @@
       sfxBus.connect(master); musicBus.connect(master);
       // one sub-bus per song, so moods can be crossfaded under the shared (ducked) musicBus
       curMood = wantSong(); pendingMood = null;
-      ['day', 'street', 'bakery', 'pond', 'night'].forEach(function (k) {
+      ['day', 'street', 'bakery', 'pond', 'house', 'night'].forEach(function (k) {
         songBus[k] = ctx.createGain();
         songBus[k].gain.value = (k === curMood) ? SONGS[k].gain : 0;
         songBus[k].connect(musicBus);
@@ -590,7 +648,8 @@
 
   // ---- speech / recorded voice
   var VOICE_TEXT = { via: 'Si vola!', bravissima: 'Bravissima!', laviamo: 'Laviamoli!', puliti: 'Che puliti!', andiamo: 'Andiamo!',
-    chebuona: 'Che buona!', grazie: 'Grazie!', preso: 'Preso!' };
+    chebuona: 'Che buona!', grazie: 'Grazie!', preso: 'Preso!',
+    trovato: 'Trovato!', cucu: 'Cuc\u00f9!' };
   // Recorded voice files. Add a key here after dropping assets/sounds/<key>.mp3,
   // e.g. ['bravissima', 'via']. Keys not listed use the browser's Italian voice,
   // so nothing is requested for missing files.
@@ -698,10 +757,10 @@
       } catch (e) { /* ignore */ }
     },
     getMood: function () { return mood; },
-    /** 'street', 'bakery', 'pond' or 'stars': which day song plays. Night stays the shared lullaby. */
+    /** 'street', 'bakery', 'pond', 'house' or 'stars': which day song plays. Night stays the shared lullaby. */
     setPlace: function (p) {
       try {
-        if (p !== 'street' && p !== 'bakery' && p !== 'pond' && p !== 'stars') return;
+        if (p !== 'street' && p !== 'bakery' && p !== 'pond' && p !== 'house' && p !== 'stars') return;
         if (p === place) return;
         place = p;
         applySong();
@@ -743,6 +802,15 @@
     pop: function () { playSfx(Synth.pop, Math.random()); },
     flip: function () { playSfx(Synth.flip); },
     giggle: function () { playSfx(Synth.giggle); },
+    rustle: function () {
+      try {
+        var now = (window.performance && performance.now) ? performance.now() : Date.now();
+        if (now - lastRustle < 250) return;   // at most 4 per second
+        lastRustle = now;
+        playSfx(Synth.rustle);
+      } catch (e) { /* never throw into the game */ }
+    },
+    scurry: function () { playSfx(Synth.scurry); },
 
     say: function (key) {
       try {

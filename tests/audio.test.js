@@ -33,13 +33,14 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const CALLS = `(() => {
   const S = window.Sound, out = [];
   const run = (n, f) => { try { f(); } catch (e) { out.push(n + ': ' + e.message); } };
-  ['setPlace', 'clipClop', 'door', 'ding', 'squish', 'plop', 'bell', 'munch', 'pop', 'flip', 'giggle', 'boing', 'clink', 'jarPop'].forEach((n) => { if (typeof S[n] !== 'function') out.push('missing ' + n); });
-  run('setPlace', () => { S.setPlace('street'); S.setPlace('bakery'); S.setPlace('stars'); S.setPlace('pond'); S.setPlace('bogus'); S.setPlace(); });
+  ['setPlace', 'clipClop', 'door', 'ding', 'squish', 'plop', 'bell', 'munch', 'pop', 'flip', 'giggle', 'boing', 'clink', 'jarPop', 'rustle', 'scurry'].forEach((n) => { if (typeof S[n] !== 'function') out.push('missing ' + n); });
+  run('setPlace', () => { S.setPlace('street'); S.setPlace('bakery'); S.setPlace('stars'); S.setPlace('pond'); S.setPlace('house'); S.setPlace('bogus'); S.setPlace(); });
   run('clipClop', () => { for (let i = 0; i < 6; i++) S.clipClop(); });
   run('door', () => { S.door(); });
   run('bakery sfx', () => { S.ding(); S.squish(); S.squish(); S.plop(); S.bell(); S.munch(); S.munch(); });
   run('pond sfx', () => { for (let i = 0; i < 8; i++) S.pop(); S.flip(); S.flip(); S.giggle(); S.giggle(); S.say('preso'); });
   run('jar sfx', () => { for (let i = 0; i < 20; i++) S.clink(); S.jarPop(); S.jarPop(); S.boing(); S.boing(); });
+  run('house sfx', () => { for (let i = 0; i < 10; i++) S.rustle(); S.scurry(); S.scurry(); S.say('trovato'); S.say('cucu'); });
   run('say', () => { S.say('andiamo'); S.say('chebuona'); S.say('grazie'); S.say('bravissima'); });
   return out;
 })()`;
@@ -257,6 +258,65 @@ test('jar synth voices render quiet and click-free; clink is rate limited', asyn
       Sound._synth.clink = function () { count++; };
       for (let i = 0; i < 30; i++) Sound.clink();
       Sound._synth.clink = orig;
+      return count;
+    });
+    assert.ok(n >= 1 && n <= 2, 'burst of 30 played ' + n);
+    assert.deepStrictEqual(errors, []);
+  } finally { await ctx.close(); }
+});
+
+
+test('house: voices, remembered place, day song swaps within 2 bars, night shared', async () => {
+  const { page, errors, ctx } = await open();
+  try {
+    assert.strictEqual(await page.evaluate(() => Sound._voiceText.trovato), 'Trovato!');
+    assert.strictEqual(await page.evaluate(() => Sound._voiceText.cucu), 'Cuc\u00f9!');
+    await page.evaluate(() => { Sound.setPlace('house'); Sound.init(); });
+    assert.strictEqual(await page.evaluate(() => Sound._song()), 'house');
+    await sleep(300);
+    const bar = await page.evaluate(() => Sound._songs.house.step * 8);
+    await page.evaluate(() => Sound.setPlace('stars'));
+    await sleep(Math.ceil(2 * bar * 1000) + 600);
+    assert.strictEqual(await page.evaluate(() => Sound._song()), 'day');
+    await page.evaluate(() => Sound.setPlace('house'));
+    await sleep(Math.ceil(2 * bar * 1000) + 600);
+    assert.strictEqual(await page.evaluate(() => Sound._song()), 'house');
+    await page.evaluate(() => Sound.setMood('night'));
+    await sleep(Math.ceil(2 * bar * 1000) + 600);
+    assert.strictEqual(await page.evaluate(() => Sound._song()), 'night');
+    assert.deepStrictEqual(errors, []);
+  } finally { await ctx.close(); }
+});
+
+test('house synth voices render quiet and click-free; rustle is rate limited', async () => {
+  const { page, errors, ctx } = await open();
+  try {
+    const r = await page.evaluate(async () => {
+      const res = {};
+      for (const [name, len] of [['rustle', 0.5], ['scurry', 1.1]]) {
+        const oc = new OfflineAudioContext(1, 44100 * len, 44100);
+        const g = oc.createGain(); g.connect(oc.destination);
+        Sound._synth[name](oc, g, 0.01, 0);
+        const buf = await Promise.race([oc.startRendering(), new Promise((r) => setTimeout(() => r(null), 4000))]);
+        if (!buf) { res[name] = 'timeout'; continue; }
+        const d = buf.getChannelData(0); let p = 0;
+        for (let i = 0; i < d.length; i++) p = Math.max(p, Math.abs(d[i]));
+        res[name] = { peak: p, first: Math.abs(d[0]), last: Math.abs(d[d.length - 1]) };
+      }
+      return res;
+    });
+    for (const k of Object.keys(r)) {
+      if (r[k] === 'timeout') continue;
+      assert.ok(r[k].peak > 0.01, k + ' is silent');
+      assert.ok(r[k].peak < 0.4, k + ' is loud: ' + r[k].peak);
+      assert.ok(r[k].first < 0.01 && r[k].last < 0.01, k + ' clicks');
+    }
+    await page.evaluate(() => Sound.init());
+    const n = await page.evaluate(() => {
+      let count = 0; const orig = Sound._synth.rustle;
+      Sound._synth.rustle = function () { count++; };
+      for (let i = 0; i < 30; i++) Sound.rustle();
+      Sound._synth.rustle = orig;
       return count;
     });
     assert.ok(n >= 1 && n <= 2, 'burst of 30 played ' + n);
