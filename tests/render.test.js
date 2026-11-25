@@ -165,7 +165,9 @@ test('bakery: pick, decorate and eat, within the render budget', () => open(390,
   await shot(page, 'bakery-decorate');
   console.log('bakery render ms/frame @390x844 DPR2 (decorating):', cost.toFixed(3));
   fs.writeFileSync(path.join(OUT, 'bakery-cost.json'), JSON.stringify({ decorating: cost }, null, 2) + '\n');
-  await tapButton(page, 'bell');
+  await hold(page, 4500);                   // idle: the tap hint shows
+  await shot(page, 'bakery-serve-hint');
+  await tapButton(page, 'serve');
   await page.waitForFunction(() => window.__bella.bakery.st.mode === 'eat', { timeout: 8000, polling: 30 });
   await hold(page, 1300);                   // half eaten, crumbs flying
   await shot(page, 'bakery-eat');

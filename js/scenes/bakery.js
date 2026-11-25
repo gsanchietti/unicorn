@@ -1,6 +1,6 @@
 /* scenes/bakery.js - the bakery: friends come in one at a time with a wish, Bongo
- * bakes a cake, the child decorates it with cream and toppings, rings the bell,
- * and the friend eats it happily and gives stars. Every cake is loved: there is
+ * bakes a cake, the child decorates it with cream and toppings, gives it
+ * (taps the friend or the big give button), and the friend eats it happily and gives stars. Every cake is loved: there is
  * no wrong cake and no timer. The loop repeats until the home button.
  *
  * Registers the 'bakery' scene with window.Core (home: 'street', no day/night
@@ -16,7 +16,7 @@
  *   pick      three shape buttons; a tap -> oven
  *   oven      the oven opens with a 'ding' (0.4 s), the cake slides out onto the
  *             counter (1.2 s) -> decorate
- *   decorate  4 creams, 6 toppings and the bell. The selected tool is ringed; it
+ *   decorate  4 creams, 6 toppings and the give button. The selected tool is ringed; it
  *             starts on cream:pink.
  *               cream:   a finger moving over the cake stamps Bakery.creamStamp into
  *                        the cake's own canvas (on the input event, never per frame),
@@ -24,7 +24,16 @@
  *               topping: a tap on the cake drops it there (cake space 0..1, bounce
  *                        0.3 s, 'plop', sparkle). Off the cake: nothing. Past 80
  *                        toppings a tap only sparkles.
- *               bell:    'bell' -> serve. A plain cake is loved too.
+ *               give:    the 'serve' button (a cream disk: the cake, three dots, the
+ *                        friend's head) or a pointer DOWN on the friend (friendRect) ->
+ *                        'bell', the bell sprite rings -> serve. Only 'down' serves; a drag
+ *                        or an up never does; a down on the cake itself decorates. A plain
+ *                        cake is loved too. From the first decoration the button pulses
+ *                        (1 +- 0.05 at 1.5 Hz; a still glow ring with reduced motion) and the
+ *                        friend hops softly (about 1 Hz, transforms only).
+ *               hint:    after 4 s without input (10 s with nothing on the cake) the tap
+ *                        hint (Art.drawTapHint) shows on the friend and on the give button,
+ *                        alternating every 1.5 s; any pointer down hides it (st.hint).
  *   serve     Bongo carries the cake on a tray to the friend (1.5 s) -> eat
  *   eat       the friend eats (2.5 s, crumbs, 'munch', "Che buona!"), then is happy
  *             (1 s wiggle): 3 stars fly to the star row and Core.addStars(3); with
@@ -41,15 +50,17 @@
  *   oven at x = max(0.1 W, 0.15 u) on the counter; Bongo stands at max(0.3 W, oven
  *   + 0.2 u) behind the counter, 0.34 u tall, feet 0.06 u below the counter top
  *   cake (0.3..0.36 u wide) centered at max(0.56 W, Bongo + 0.28 u), on the counter;
- *   the bell sprite 0.21 u left of it
+ *   the bell sprite 0.21 u left of it (only a picture now)
  *   stool and friend (0.34 u tall) at W - max(0.14 W, 0.14 u), the friend sitting
  *   0.1 u above the counter top; the cake is served at stool - 0.14 u, in front of
  *   the friend, and eaten from the friend's side
  *   the wish bubble's tail 0.04 u below the friend's head, 0.12 u left of it (moved
  *   left, clear of #home and #mute, when it reaches the top 90 px)
  *   buttons: the band between ctY + 0.05 u and H - max(10, 0.03 M); pick: 3 buttons
- *   r <= 0.1 M; decorate: one row (creams | toppings | bell) or two rows (creams and
- *   bell / toppings), whichever gives the bigger radius, r <= 0.09 M; aimed at
+ *   r <= 0.1 M; decorate: the give button first, R = min(0.105 M, room right of the cake)
+ *   >= 0.08 M, centered at x = stool x (pushed right, clear of the cake, in portrait), y =
+ *   friend's feet + R; then the tools below it: one row (creams | toppings) or two rows
+ *   (creams / toppings), whichever gives the bigger radius, r <= min(0.09 M, 0.92 R); aimed at
  *   r >= 0.06 M (0.12 M across)
  *   star row (the stars of this visit, 10 slots, a big star per 10) at the top left
  *   the window (Bakery.windowRect) shows the last 6 saved cakes as thumbnails in one
@@ -68,8 +79,11 @@
  *   st          {mode, mt, friend, wish, shape, tool, toppings: [{k, x, y, a}],
  *               creamDabs, served, enters, saved} (mt: seconds in this mode;
  *               x, y in cake space; served: cakes served since the page loaded;
- *               enters: enter() calls; saved: cakes in the window)
- *   buttons()   [{id, x, y, r}] of the buttons shown now (none outside pick/decorate)
+ *               enters: enter() calls; saved: cakes in the window; hint: the tap
+ *               hint is showing)
+ *   buttons()   [{id, x, y, r}] of the buttons shown now (none outside pick/decorate):
+ *               shape:* in pick; cream:*, top:* and serve in decorate
+ *   friendRect() {x, y, w, h} of the friend on screen, or null while away (off)
  *   cakeRect()  {x, y, w, h} of the cake on screen (null before a cake is picked)
  */
 (function () {
@@ -95,8 +109,9 @@
   // ------------------------------------------------------------------ state
   var st = {
     mode: 'off', mt: 0, friend: Friends.KINDS[0], wish: null, shape: null, tool: 'cream:pink',
-    toppings: [], creamDabs: 0, served: 0, enters: 0, saved: 0
+    toppings: [], creamDabs: 0, served: 0, enters: 0, saved: 0, hint: false
   };
+  var idle = 0;                // seconds without input while decorating
   var friendI = 0, t = 0;
   var fr = { x: 0, stride: 0, dir: -1, state: 'walk', p: 0, sit: 0 };    // the friend
   var bo = { x: 0, dir: 1, walk: 0, stride: 0, carry: 0 };               // Bongo
@@ -224,9 +239,9 @@
     return { x: x, y: y, k: k, w: bs.w * k, h: bs.h * k };
   }
 
-  function rowLayout(rows, r) {
+  function rowLayout(rows, r, top) {
     // rows: [[id or null (a gap)], ...]; returns buttons centered in the band
-    var out = [], A = L.ctY + L.u * 0.05, B = H - Math.max(10, M * 0.03);
+    var out = [], A = top === undefined ? L.ctY + L.u * 0.05 : top, B = H - Math.max(10, M * 0.03);
     var gapY = r * 2.45, mid = (A + B) / 2;
     rows.forEach(function (row, ri) {
       var wRow = 0;
@@ -240,8 +255,8 @@
     });
     return out;
   }
-  function rowsFit(rows, rMax) {
-    var A = L.ctY + L.u * 0.05, B = H - Math.max(10, M * 0.03), pad = 8;
+  function rowsFit(rows, rMax, top) {
+    var A = top === undefined ? L.ctY + L.u * 0.05 : top, B = H - Math.max(10, M * 0.03), pad = 8;
     var widest = 0;
     rows.forEach(function (row) {
       var w = 0;
@@ -257,10 +272,22 @@
     var tops = TOPS.map(function (k) { return 'top:' + k; });
     var pick = [shapes];
     L.pick = rowLayout(pick, rowsFit(pick, M * 0.1));
-    var one = [creams.concat([null], tops, [null], ['bell'])];
-    var two = [creams.concat([null], ['bell']), tops];
-    var r1 = rowsFit(one, M * 0.09), r2 = rowsFit(two, M * 0.09);
-    L.deco = r1 >= r2 ? rowLayout(one, r1) : rowLayout(two, r2);
+    // The give button ('serve') sits by the friend, on the counter's edge in front of
+    // the stool, clear of the cake (in portrait it is pushed right, to the screen edge).
+    // The tool rows go below it.
+    var cakeRight = L.cakeX + 0.19 * L.u;
+    var R = Math.min(M * 0.105, (W - 10 - cakeRight - 4) / 2);
+    R = Math.max(R, M * 0.08);
+    var gx = Math.max(cakeRight + 4 + R, Math.min(L.stoolX, W - R - 6));
+    gx = Math.min(gx, W - R - 6);
+    var gy = Math.min(L.ctY - 0.08 * L.u + R, H - R - 10);
+    L.give = { id: 'serve', x: gx, y: gy, r: R };
+    var top = Math.max(L.ctY + L.u * 0.05, gy + R + 6), rMax = Math.min(M * 0.09, R * 0.92);
+    var one = [creams.concat([null], tops)];
+    var two = [creams, tops];
+    var r1 = rowsFit(one, rMax, top), r2 = rowsFit(two, rMax, top);
+    L.deco = (r1 >= r2 ? rowLayout(one, r1, top) : rowLayout(two, r2, top)).concat([L.give]);
+    buildGiveArt();
   }
   function buttons() {
     if (st.mode === 'pick') return L.pick;
@@ -302,16 +329,28 @@
       setMode('oven');
       snd('bubble');
     } else if (st.mode === 'decorate') {
-      if (b.id === 'bell') {
-        strokes.clear();
-        bellRing = 1;
-        snd('bell');
-        setMode('serve');
+      if (b.id === 'serve') {
+        giveCake();
       } else {
         st.tool = b.id;
         snd('bubble');
       }
     }
+  }
+  // The cake goes to the friend: from the give button or a tap on the friend.
+  function giveCake() {
+    if (st.mode !== 'decorate') return;
+    strokes.clear();
+    bellRing = 1;
+    snd('bell');
+    st.hint = false;
+    setMode('serve');
+  }
+  function decorated() { return st.creamDabs > 0 || st.toppings.length > 0; }
+  function friendRect() {
+    if (st.mode === 'off') return null;
+    var w = L.friendH * 0.75, h = L.friendH;
+    return { x: fr.x - w / 2, y: friendBottom() - h, w: w, h: h };
   }
   function wishOn() {
     for (var i = 0; i < st.toppings.length; i++) if (st.toppings[i].k === st.wish) return true;
@@ -367,6 +406,12 @@
     hitG.restore();
     return inside;
   }
+  function pointOnCake(x, y) {
+    var r = cakeScreen();
+    if (!r || !base) return false;
+    var px = (x - r.x) / r.w, py = (y - r.y) / r.h;
+    return px >= 0 && px <= 1 && py >= 0 && py <= 1 && onCake(px, py);
+  }
   function dropTopping(x, y) {
     var r = cakeScreen();
     if (!r) return;
@@ -379,9 +424,14 @@
   }
   function pointer(type, p) {
     if (type === 'down') {
+      idle = 0; st.hint = false;
       var b = buttonAt(p.x, p.y);
       if (b) { press(b); return; }
       if (st.mode !== 'decorate') return;
+      if (!pointOnCake(p.x, p.y)) {          // a tap on the friend gives the cake
+        var fz = friendRect();
+        if (fz && p.x >= fz.x && p.x <= fz.x + fz.w && p.y >= fz.y && p.y <= fz.y + fz.h) { giveCake(); return; }
+      }
       if (st.tool.indexOf('cream:') === 0) {
         var s = { x: p.x, y: p.y, color: st.tool.split(':')[1] };
         strokes.set(p.id, s);
@@ -390,6 +440,7 @@
     } else if (type === 'move') {
       var sk = strokes.get(p.id);
       if (!sk) return;
+      idle = 0; st.hint = false;
       if (st.mode !== 'decorate') { strokes.delete(p.id); return; }
       creamAt(sk, p.x, p.y);
       sk.x = p.x; sk.y = p.y;
@@ -466,6 +517,7 @@
     for (i = 0; i < st.toppings.length; i++) if (st.toppings[i].a < 1) st.toppings[i].a += dt;
     for (var id in pops) if (pops[id] < 1) pops[id] += dt;
     bellRing = Math.max(0, bellRing - dt / 0.8);
+    if (st.mode !== 'decorate') { idle = 0; st.hint = false; }
     bo.carry = 0;
     fr.state = fr.sit > 0.99 ? 'sit' : 'walk';
     var fx0 = fr.x;
@@ -496,6 +548,8 @@
       }
     } else if (st.mode === 'decorate') {
       walkBongo(dt, L.bongoX);
+      idle += dt;
+      st.hint = idle >= (decorated() ? 4 : 10);
     } else if (st.mode === 'serve') {
       var ps = smooth(mt / T.serve);
       var x0 = cake.x;
@@ -574,8 +628,15 @@
     if (fr.x - L.friendH > W) return;
     fpose.t = t; fpose.state = fr.state; fpose.p = fr.p;
     g.save();
-    g.translate(fr.x, friendBottom());
+    var hop = 0, sq = 1;
+    if (st.mode === 'decorate' && decorated() && !reduced) {       // eager: a soft hop
+      var ph = Math.abs(Math.sin(Math.PI * st.mt * 1.0));
+      hop = ph * L.friendH * 0.04;
+      sq = 1 + 0.03 * (1 - ph) - 0.015;
+    }
+    g.translate(fr.x, friendBottom() - hop);
     if (fr.dir > 0) g.scale(-1, 1);
+    if (sq !== 1) g.scale(1 / sq, sq);
     Friends.draw(g, st.friend, 0, 0, fpose);
     g.restore();
   }
@@ -620,7 +681,9 @@
   function drawButtons(g) {
     var list = buttons();
     for (var i = 0; i < list.length; i++) {
-      var b = list[i], ic = Bakery.icon(b.id), sel = b.id === st.tool, r = b.r;
+      var b = list[i];
+      if (b.id === 'serve') { drawGive(g, b); continue; }
+      var ic = Bakery.icon(b.id), sel = b.id === st.tool, r = b.r;
       var pop = pops[b.id] !== undefined && pops[b.id] < 0.3 ? 1 + 0.15 * Math.sin(Math.PI * pops[b.id] / 0.3) : 1;
       if (st.mode === 'pick' && !reduced) r *= 1 + 0.04 * Math.sin(t * 3 + i);
       if (sel) {
@@ -630,13 +693,67 @@
         g.lineWidth = Math.max(2, r * 0.08); g.strokeStyle = Art.PAL.ink; g.stroke();
       }
       r *= pop;
-      var rot = b.id === 'bell' && (st.creamDabs || st.toppings.length) && !reduced ? Math.sin(t * 9) * 0.12 * Math.max(0, Math.sin(t * 1.3)) : 0;
-      if (rot) {
-        g.save(); g.translate(b.x, b.y); g.rotate(rot);
-        g.drawImage(ic.c, -r, -r, 2 * r, 2 * r);
-        g.restore();
-      } else g.drawImage(ic.c, b.x - r, b.y - r, 2 * r, 2 * r);
+      g.drawImage(ic.c, b.x - r, b.y - r, 2 * r, 2 * r);
     }
+  }
+  // The give button: a cream disk, the cake on the left, three dots toward the
+  // friend's head on the right. Static parts are cached (buildGiveArt).
+  function drawGive(g, b) {
+    var ga = S.give, r = b.r, pop = pops.serve !== undefined && pops.serve < 0.3 ? 1 + 0.15 * Math.sin(Math.PI * pops.serve / 0.3) : 1;
+    var on = decorated(), pulse = on && !reduced ? 1 + 0.05 * Math.sin(t * TAU * 1.5) : 1;
+    var k = pulse * pop;
+    g.save();
+    g.translate(b.x, b.y);
+    g.scale(k, k);
+    if (on) g.drawImage(ga.ring, -ga.ringR, -ga.ringR, 2 * ga.ringR, 2 * ga.ringR);
+    g.drawImage(ga.disk, -r, -r, 2 * r, 2 * r);
+    if (base && cakeCv) {                          // the cake, small, on the left
+      var cw = r * 0.78, ck = cw / base.w, ch = base.h * ck, cx = -r * 0.46 - cw / 2, cy = r * 0.1 - ch / 2;
+      g.drawImage(cakeCv, cx, cy, cw, ch);
+      var n = Math.min(st.toppings.length, 40);
+      for (var i = 0; i < n; i++) {
+        var q = st.toppings[i], tp = Bakery.topping(q.k);
+        g.drawImage(tp.c, cx + q.x * cw - tp.w * ck / 2, cy + q.y * ch - tp.h * ck / 2, tp.w * ck, tp.h * ck);
+      }
+    }
+    g.drawImage(ga.dots, -r, -r, 2 * r, 2 * r);
+    g.save();                                       // the friend's head, in a small round window on the right
+    g.beginPath(); g.arc(r * 0.5, r * 0.02, r * 0.43, 0, TAU); g.clip();
+    var fk = r * 1.85 / L.friendH;
+    g.translate(r * 0.5, r * 1.1);
+    g.scale(-fk, fk);
+    fpose.t = t; fpose.state = 'sit'; fpose.p = 0;
+    Friends.draw(g, st.friend, 0, 0, fpose);
+    g.restore();
+    g.drawImage(ga.rim, -r, -r, 2 * r, 2 * r);
+    g.restore();
+  }
+  function drawHint(g) {
+    if (!st.hint || st.mode !== 'decorate') return;
+    var ph = Math.floor((idle - (decorated() ? 4 : 10)) / 1.5) % 2, fz = friendRect();
+    if (ph === 0 && fz) Art.drawTapHint(g, fz.x + fz.w / 2, fz.y + fz.h * 0.6, L.friendH * 0.4, t);
+    else Art.drawTapHint(g, L.give.x, L.give.y, L.give.r * 0.9, t);
+  }
+  function buildGiveArt() {
+    var r = L.give.r, c, g;
+    var ring = Art.makeCanvas(2 * r * 1.5 * DPR, 2 * r * 1.5 * DPR);
+    g = ring.getContext('2d'); g.scale(DPR, DPR);
+    var gr = g.createRadialGradient(r * 1.5, r * 1.5, r * 0.8, r * 1.5, r * 1.5, r * 1.5);
+    gr.addColorStop(0, 'rgba(255,214,120,0.9)'); gr.addColorStop(0.55, 'rgba(249,200,90,0.45)'); gr.addColorStop(1, 'rgba(249,200,90,0)');
+    g.fillStyle = gr; g.fillRect(0, 0, 3 * r, 3 * r);
+    function layer() { c = Art.makeCanvas(2 * r * DPR, 2 * r * DPR); g = c.getContext('2d'); g.scale(DPR, DPR); g.translate(r, r); return c; }
+    var disk = layer();
+    g.beginPath(); g.arc(0, 0, r * 0.94, 0, TAU);
+    g.fillStyle = '#fff6df'; g.fill();
+    disk.lw = 2 * r;
+    Art.pencil(disk, '#f3cf8e', 5, 0.55);
+    var dots = layer();
+    g.fillStyle = Art.PAL.orange || '#f08a3c';
+    for (var i = 0; i < 3; i++) { g.beginPath(); g.arc(-r * 0.08 + i * r * 0.17, r * 0.1, r * (0.045 + 0.012 * i), 0, TAU); g.fill(); }
+    var rim = layer();
+    g.beginPath(); g.arc(0, 0, r * 0.94, 0, TAU);
+    Art.ink(g, Math.max(2, r * 0.07)); g.stroke();
+    S.give = { disk: disk, dots: dots, rim: rim, ring: ring, ringR: r * 1.5 };
   }
   // the star row: 10 slots at the top left (clear of #home and #mute), and under
   // them one big star per 10
@@ -699,6 +816,7 @@
     drawCake(g);
     drawBubble(g);
     drawButtons(g);
+    drawHint(g);
     drawParts(g);
     drawStarRow(g);
   }
@@ -791,6 +909,7 @@
       for (var i = 0; i < 10; i++) slotPop[i] = 9;
       pops = {};
       bo.x = L.bongoX; bo.dir = 1; bo.walk = 0; bo.carry = 0;
+      idle = 0; st.hint = false;
       loadCakes();
       buildThumbs();
       startVisit();
@@ -814,6 +933,7 @@
     buttons: function () {
       return buttons().map(function (b) { return { id: b.id, x: b.x, y: b.y, r: b.r }; });
     },
+    friendRect: function () { return friendRect(); },
     cakeRect: function () {
       var r = cakeScreen();
       return r && { x: r.x, y: r.y, w: r.w, h: r.h };

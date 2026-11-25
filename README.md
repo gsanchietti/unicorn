@@ -17,7 +17,7 @@ A gentle browser game for small children. Bella the unicorn and Bongo the teddy 
   - **Tap a cake** (round, heart or tall). Bongo takes it out of the oven.
   - **Rub the cake** to spread cream. Tap a cream pot to change the color.
   - **Tap a topping**, then **tap the cake** to put it there: strawberries, chocolate drops, sprinkles, flowers, stars, candles.
-  - **Tap the bell** when the cake is ready (even a plain one). Bongo serves it, the friend eats it and gives 3 stars, or 5 with the wished topping on the cake. Then the next friend comes in.
+  - **Tap the friend, or the big round give button** when the cake is ready (even a plain one). Bongo serves it, the friend eats it and gives 3 stars, or 5 with the wished topping on the cake. Then the next friend comes in.
   - The last 6 cakes stand in the bakery window. The house button goes back to the street.
 - In the star game, **tap or hold** the screen: Bella flies up. **Let go**: she floats down gently.
 - Touch the **stars** to collect them. Clouds are harmless: Bella just bounces off them.

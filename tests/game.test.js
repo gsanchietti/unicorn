@@ -507,6 +507,8 @@ const bk = (page) => ev(page, () => {
 });
 const starTotal = (page) => ev(page, () => window.Core.stars());
 const cakeRect = (page) => ev(page, () => window.__bella.bakery.cakeRect());
+const friendRect = (page) => ev(page, () => window.__bella.bakery.friendRect());
+const clickRect = async (page, r) => page.mouse.click(r.x + r.w / 2, r.y + r.h / 2);
 const frames = (page, n) => page.evaluate((n) => new Promise((done) => {
   let i = 0;
   (function tick() { if (++i >= n) done(); else requestAnimationFrame(tick); })();
@@ -543,7 +545,7 @@ each('the bakery door opens the bakery', async ({ page }) => {
   assert.ok(TOPS.includes(s.wish), 'wish ' + s.wish);
 });
 
-test('pick a cake, decorate it, ring the bell, get stars', () => single(async ({ page }) => {
+test('pick a cake, decorate it, give it, get stars', () => single(async ({ page }) => {
   await toDecorate(page, 'round');
   const r = await cakeRect(page);
   const d0 = (await bk(page)).creamDabs;
@@ -554,7 +556,7 @@ test('pick a cake, decorate it, ring the bell, get stars', () => single(async ({
   await page.mouse.click(r.x + r.w / 2, r.y + r.h / 2);
   assert.strictEqual((await bk(page)).toppings.length, 1);
   const s0 = await starTotal(page);
-  await tapButton(page, 'bell');
+  await tapButton(page, 'serve');
   await nextFriend(page, 1);
   assert.strictEqual(await starTotal(page) - s0, 5);
   assert.strictEqual((await bk(page)).friend, 'pagi');
@@ -563,10 +565,82 @@ test('pick a cake, decorate it, ring the bell, get stars', () => single(async ({
   assert.strictEqual(cakes[0].s, 'round');
 }));
 
+each('tap the friend serves the cake', async ({ page }) => {
+  await toDecorate(page, 'round');
+  const s0 = await starTotal(page), n0 = (await bk(page)).served;
+  await clickRect(page, await friendRect(page));
+  await nextFriend(page, n0 + 1);
+  const d = await starTotal(page) - s0;
+  assert.ok(d === 3 || d === 5, 'stars +' + d);
+  assert.strictEqual((await bk(page)).served, n0 + 1);
+});
+
+each('the give button sits by the friend and is big', async ({ page }, s) => {
+  await toDecorate(page, 'round');
+  const o = await ev(page, () => ({ b: window.__bella.bakery.buttons(), f: window.__bella.bakery.friendRect(), c: window.__bella.bakery.cakeRect(), M: Math.min(innerWidth, innerHeight) }));
+  const g = o.b.find((q) => q.id === 'serve');
+  assert.ok(g, 'serve is shown');
+  assert.ok(!o.b.find((q) => q.id === 'bell'), 'no bell button');
+  assert.ok(g.r >= 0.08 * o.M, 'big: ' + g.r);
+  o.b.filter((q) => /^(cream|top):/.test(q.id)).forEach((q) => assert.ok(g.r > q.r, q.id + ' is smaller'));
+  const mid = (r) => [r.x + r.w / 2, r.y + r.h / 2];
+  const df = Math.hypot(g.x - mid(o.f)[0], g.y - mid(o.f)[1]), dc = Math.hypot(g.x - mid(o.c)[0], g.y - mid(o.c)[1]);
+  assert.ok(df < dc, 'nearer the friend (' + df.toFixed(0) + ') than the cake (' + dc.toFixed(0) + ')');
+  assert.ok(g.x - g.r >= 0 && g.y - g.r >= 0 && g.x + g.r <= s.w && g.y + g.r <= s.h, 'inside the viewport');
+  const nx = Math.max(o.c.x, Math.min(g.x, o.c.x + o.c.w)), ny = Math.max(o.c.y, Math.min(g.y, o.c.y + o.c.h));
+  assert.ok(Math.hypot(g.x - nx, g.y - ny) >= g.r, 'clear of the cake');
+  o.b.filter((q) => q.id !== 'serve').forEach((q) => assert.ok(Math.hypot(g.x - q.x, g.y - q.y) >= g.r + q.r, 'clear of ' + q.id));
+});
+
+each('tapping the friend only serves while decorating', async ({ page }) => {
+  await playBakery(page);                   // in pick
+  const n0 = (await bk(page)).served;
+  const fz = await friendRect(page);
+  assert.ok(fz, 'friendRect shown');
+  await clickRect(page, fz);
+  await hold(page, 300);
+  assert.strictEqual((await bk(page)).mode, 'pick');
+  assert.strictEqual((await bk(page)).served, n0);
+});
+
+test('tapping the friend while it arrives does nothing', () => single(async ({ page }) => {
+  await tapPlay(page);
+  await waitFor(page, () => window.__bella.scene() === 'street');
+  await ev(page, () => window.__bella.street.enter('bakery'));
+  await waitFor(page, () => window.__bella.scene() === 'bakery' && window.__bella.bakery.st.mode === 'arrive', 10000);
+  const fz = await friendRect(page);
+  assert.ok(fz, 'friendRect shown');
+  await page.mouse.click(Math.min(fz.x + fz.w / 2, 380), fz.y + fz.h / 2);
+  await hold(page, 200);
+  const b = await bk(page);
+  assert.ok(b.mode === 'arrive' || b.mode === 'pick', 'mode ' + b.mode);
+  assert.strictEqual(b.served, 0);
+}));
+
+test('a cream drag onto the friend does not serve', () => single(async ({ page }) => {
+  await toDecorate(page, 'round');
+  const r = await cakeRect(page), f = await friendRect(page);
+  await drag(page, r.x + r.w / 2, r.y + r.h / 2, f.x + f.w / 2, f.y + f.h / 2, 10);
+  await hold(page, 300);
+  assert.strictEqual((await bk(page)).mode, 'decorate');
+}));
+
+each('the hint shows after a pause', async ({ page }) => {
+  await toDecorate(page, 'round');
+  const r = await cakeRect(page);
+  await tapButton(page, 'top:star');
+  await page.mouse.click(r.x + r.w / 2, r.y + r.h / 2);
+  assert.strictEqual(await ev(page, () => window.__bella.bakery.st.hint), false);
+  await hold(page, 4500);
+  assert.strictEqual(await ev(page, () => window.__bella.bakery.st.hint), true);
+  await page.mouse.click(r.x + r.w / 2, r.y + r.h / 2);
+  assert.strictEqual(await ev(page, () => window.__bella.bakery.st.hint), false);
+});
+
 each('a plain cake is loved too', async ({ page }) => {
   await toDecorate(page, 'tall');
   const s0 = await starTotal(page);
-  await tapButton(page, 'bell');
+  await tapButton(page, 'serve');
   await nextFriend(page, 1);
   assert.strictEqual(await starTotal(page) - s0, 3);
 });
@@ -574,10 +648,12 @@ each('a plain cake is loved too', async ({ page }) => {
 each('taps during serving give stars once', async ({ page }, s) => {
   await toDecorate(page, 'heart');
   const s0 = await starTotal(page), n0 = (await bk(page)).served;
-  await tapButton(page, 'bell');
+  await tapButton(page, 'serve');
   // through serve (1.5 s) and eat (3.5 s); below the #home and #mute buttons
+  const fz = await friendRect(page);
   for (let i = 0; i < 30; i++) {
-    await page.mouse.click(5 + Math.random() * (s.w - 10), 100 + Math.random() * (s.h - 105));
+    if (i % 3 === 0) await clickRect(page, fz);
+    else await page.mouse.click(5 + Math.random() * (s.w - 10), 100 + Math.random() * (s.h - 105));
     await hold(page, 120);
   }
   await nextFriend(page, n0 + 1);
@@ -670,7 +746,7 @@ each('corrupt cakes in storage are ignored', async ({ page }) => {
   assert.strictEqual((await bk(page)).saved, 6);
   await tapButton(page, 'shape:round');
   await waitFor(page, () => window.__bella.bakery.st.mode === 'decorate', 8000);
-  await tapButton(page, 'bell');
+  await tapButton(page, 'serve');
   await nextFriend(page, 1);
   assert.strictEqual(await ev(page, () => JSON.parse(localStorage.getItem('bella.cakes')).length), 6);
 });
